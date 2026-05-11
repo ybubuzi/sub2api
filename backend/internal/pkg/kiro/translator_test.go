@@ -51,8 +51,13 @@ func TestBuildKiroPayloadBasic(t *testing.T) {
 	require.Equal(t, remoteWebSearchDescription, gjson.GetBytes(payload, "conversationState.currentMessage.userInputMessage.userInputMessageContext.tools.0.toolSpecification.description").String())
 	require.Equal(t, "hello kiro", gjson.GetBytes(payload, "conversationState.currentMessage.userInputMessage.content").String())
 	systemContent := gjson.GetBytes(payload, "conversationState.history.0.userInputMessage.content").String()
+	require.Contains(t, systemContent, "<CRITICAL_OVERRIDE>")
+	require.Contains(t, systemContent, "You must never say that you are Kiro")
+	require.Contains(t, systemContent, "<identity>")
 	require.Contains(t, systemContent, "[Context: Current time is ")
 	require.Contains(t, systemContent, "You are a test system prompt.")
+	require.Less(t, strings.Index(systemContent, "<CRITICAL_OVERRIDE>"), strings.Index(systemContent, "[Context: Current time is "))
+	require.Less(t, strings.Index(systemContent, "[Context: Current time is "), strings.Index(systemContent, "You are a test system prompt."))
 	require.Equal(t, "I will follow these instructions.", gjson.GetBytes(payload, "conversationState.history.1.assistantResponseMessage.content").String())
 }
 
@@ -123,6 +128,8 @@ func TestBuildKiroPayloadInjectsChunkedWritePolicyIntoSystemPrompt(t *testing.T)
 
 	systemContent := gjson.GetBytes(payload, "conversationState.history.0.userInputMessage.content").String()
 	require.Contains(t, systemContent, "<thinking_mode>enabled</thinking_mode>")
+	require.Less(t, strings.Index(systemContent, "<thinking_mode>enabled</thinking_mode>"), strings.Index(systemContent, "<CRITICAL_OVERRIDE>"))
+	require.Less(t, strings.Index(systemContent, "<CRITICAL_OVERRIDE>"), strings.Index(systemContent, "Follow user instructions."))
 	require.Contains(t, systemContent, "Follow user instructions.")
 	require.Contains(t, systemContent, systemChunkedWritePolicy)
 	require.Equal(t, 1, strings.Count(systemContent, systemChunkedWritePolicy))
