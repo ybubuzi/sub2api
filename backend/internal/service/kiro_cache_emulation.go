@@ -585,12 +585,12 @@ func writeCanonicalJSON(buf *bytes.Buffer, v any) error {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
-		if _, err := buf.WriteByte('{'); err != nil {
+		if err := buf.WriteByte('{'); err != nil {
 			return err
 		}
 		for i, k := range keys {
 			if i > 0 {
-				if _, err := buf.WriteByte(','); err != nil {
+				if err := buf.WriteByte(','); err != nil {
 					return err
 				}
 			}
@@ -601,26 +601,34 @@ func writeCanonicalJSON(buf *bytes.Buffer, v any) error {
 			if _, err := buf.Write(kb); err != nil {
 				return err
 			}
-			if _, err := buf.WriteByte(':'); err != nil {
+			if err := buf.WriteByte(':'); err != nil {
 				return err
 			}
 			if err := writeCanonicalJSON(buf, x[k]); err != nil {
 				return err
 			}
 		}
-		buf.WriteByte('}')
+		if err := buf.WriteByte('}'); err != nil {
+			return err
+		}
 		return nil
 	case []any:
-		buf.WriteByte('[')
+		if err := buf.WriteByte('['); err != nil {
+			return err
+		}
 		for i, child := range x {
 			if i > 0 {
-				buf.WriteByte(',')
+				if err := buf.WriteByte(','); err != nil {
+					return err
+				}
 			}
 			if err := writeCanonicalJSON(buf, child); err != nil {
 				return err
 			}
 		}
-		buf.WriteByte(']')
+		if err := buf.WriteByte(']'); err != nil {
+			return err
+		}
 		return nil
 	default:
 		b, err := json.Marshal(v)
