@@ -116,9 +116,6 @@ func (r *groupRepository) GetByIDLite(ctx context.Context, id int64) (*service.G
 		return nil, translatePersistenceError(err, service.ErrGroupNotFound, nil)
 	}
 	out := groupEntityToService(m)
-	if err := r.hydrateKiroCacheEmulationFields(ctx, out); err != nil {
-		return nil, err
-	}
 	return out, nil
 }
 

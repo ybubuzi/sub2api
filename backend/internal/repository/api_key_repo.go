@@ -726,6 +726,8 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		MessagesDispatchModelConfig:     g.MessagesDispatchModelConfig,
 		ModelsListConfig:                g.ModelsListConfig,
 		RPMLimit:                        g.RpmLimit,
+		KiroCacheEmulationEnabled:       g.KiroCacheEmulationEnabled,
+		KiroCacheEmulationRatio:         g.KiroCacheEmulationRatio,
 		CreatedAt:                       g.CreatedAt,
 		UpdatedAt:                       g.UpdatedAt,
 	}
