@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ func startAuthRouteRedis(t *testing.T, ctx context.Context) *redis.Client {
 	t.Helper()
 	ensureAuthRouteDockerAvailable(t)
 
-	redisContainer, err := tcredis.Run(ctx, authRouteRedisImageTag)
+	redisContainer, err := runAuthRouteRedisContainer(ctx, 3)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = redisContainer.Terminate(ctx)
@@ -68,6 +69,24 @@ func startAuthRouteRedis(t *testing.T, ctx context.Context) *redis.Client {
 		_ = rdb.Close()
 	})
 	return rdb
+}
+
+func runAuthRouteRedisContainer(ctx context.Context, attempts int) (*tcredis.RedisContainer, error) {
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		redisContainer, err := tcredis.Run(ctx, authRouteRedisImageTag)
+		if err == nil {
+			return redisContainer, nil
+		}
+		lastErr = err
+		if redisContainer != nil {
+			_ = redisContainer.Terminate(ctx)
+		}
+		if attempt < attempts {
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+	}
+	return nil, fmt.Errorf("start redis after %d attempts: %w", attempts, lastErr)
 }
 
 func ensureAuthRouteDockerAvailable(t *testing.T) {
