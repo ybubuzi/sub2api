@@ -139,7 +139,7 @@ func AnalyzeBufferedStream(chunks [][]byte) BufferedStreamResult {
 					continue
 				}
 				if partialJSON, ok := delta["partial_json"].(string); ok {
-					toolInputBuilder.WriteString(partialJSON)
+					_, _ = toolInputBuilder.WriteString(partialJSON)
 				}
 			case "content_block_stop":
 				if !isWebSearchToolName(currentToolName, "") {
@@ -221,7 +221,7 @@ func filterSSEChunk(chunk []byte, webSearchToolUseIndex, indexOffset int) ([]byt
 					continue
 				}
 			}
-			builder.WriteString(line + "\n")
+			_, _ = builder.WriteString(line + "\n")
 			hasContent = true
 			continue
 		}
@@ -238,12 +238,12 @@ func filterSSEChunk(chunk []byte, webSearchToolUseIndex, indexOffset int) ([]byt
 			if adjusted == "" {
 				continue
 			}
-			builder.WriteString("data: " + adjusted + "\n")
+			_, _ = builder.WriteString("data: " + adjusted + "\n")
 			hasContent = true
 			continue
 		}
 
-		builder.WriteString(line + "\n")
+	_, _ = builder.WriteString(line + "\n")
 		if strings.TrimSpace(line) != "" {
 			hasContent = true
 		}

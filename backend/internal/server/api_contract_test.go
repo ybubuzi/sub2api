@@ -320,6 +320,8 @@ func TestAPIContracts(t *testing.T) {
 						"platform": "anthropic",
 						"rate_multiplier": 1.5,
 						"is_exclusive": false,
+						"kiro_cache_emulation_enabled": false,
+						"kiro_cache_emulation_ratio": 0,
 						"status": "active",
 						"subscription_type": "standard",
 						"daily_limit_usd": null,
