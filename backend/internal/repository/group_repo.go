@@ -115,23 +115,6 @@ func (r *groupRepository) GetByIDLite(ctx context.Context, id int64) (*service.G
 	return out, nil
 }
 
-func (r *groupRepository) hydrateKiroCacheEmulationFields(ctx context.Context, groupOut *service.Group) error {
-	if r == nil || r.sql == nil || groupOut == nil || groupOut.ID <= 0 {
-		return nil
-	}
-	var enabled bool
-	var ratio float64
-	if err := scanSingleRow(ctx, r.sql,
-		`SELECT kiro_cache_emulation_enabled, kiro_cache_emulation_ratio FROM groups WHERE id = $1`,
-		[]any{groupOut.ID}, &enabled, &ratio); err != nil {
-		return err
-	}
-	groupOut.KiroCacheEmulationEnabled = enabled
-	groupOut.KiroCacheEmulationRatio = ratio
-	service.NormalizeGroupRuntimeFields(groupOut)
-	return nil
-}
-
 func (r *groupRepository) updateKiroCacheEmulationFields(ctx context.Context, groupIn *service.Group) error {
 	if r == nil || r.sql == nil || groupIn == nil || groupIn.ID <= 0 {
 		return nil
