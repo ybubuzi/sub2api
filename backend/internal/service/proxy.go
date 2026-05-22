@@ -8,18 +8,18 @@ import (
 )
 
 type Proxy struct {
-	ID        int64
-	Name      string
-	Protocol  string
-	Host      string
-	Port      int
-	Username  string
-	Password  string
-	Status    string
+	ID              int64
+	Name            string
+	Protocol        string
+	Host            string
+	Port            int
+	Username        string
+	Password        string
+	Status          string
 	UpstreamProxyID *int64
 	UpstreamProxy   *Proxy
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 func (p *Proxy) IsActive() bool {

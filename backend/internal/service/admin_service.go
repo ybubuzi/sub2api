@@ -379,23 +379,23 @@ type BulkUpdateAccountsResult struct {
 }
 
 type CreateProxyInput struct {
-	Name     string
-	Protocol string
-	Host     string
-	Port     int
-	Username string
-	Password string
+	Name            string
+	Protocol        string
+	Host            string
+	Port            int
+	Username        string
+	Password        string
 	UpstreamProxyID *int64
 }
 
 type UpdateProxyInput struct {
-	Name     string
-	Protocol string
-	Host     string
-	Port     int
-	Username string
-	Password string
-	Status   string
+	Name            string
+	Protocol        string
+	Host            string
+	Port            int
+	Username        string
+	Password        string
+	Status          string
 	UpstreamProxyID *int64
 }
 
@@ -2867,13 +2867,13 @@ func (s *adminServiceImpl) GetProxiesByIDs(ctx context.Context, ids []int64) ([]
 
 func (s *adminServiceImpl) CreateProxy(ctx context.Context, input *CreateProxyInput) (*Proxy, error) {
 	proxy := &Proxy{
-		Name:     input.Name,
-		Protocol: input.Protocol,
-		Host:     input.Host,
-		Port:     input.Port,
-		Username: input.Username,
-		Password: input.Password,
-		Status:   StatusActive,
+		Name:            input.Name,
+		Protocol:        input.Protocol,
+		Host:            input.Host,
+		Port:            input.Port,
+		Username:        input.Username,
+		Password:        input.Password,
+		Status:          StatusActive,
 		UpstreamProxyID: input.UpstreamProxyID,
 	}
 	if err := s.validateProxyUpstream(ctx, 0, proxy.UpstreamProxyID); err != nil {
