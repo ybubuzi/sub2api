@@ -52,6 +52,15 @@ var probeURLs = []struct {
 }{
 	{"http://ip-api.com/json/?lang=zh-CN", "ip-api"},
 	{"http://httpbin.org/ip", "httpbin"},
+	{"https://httpbin.org/ip", "httpbin"},
+}
+
+var chainProbeURLs = []struct {
+	url    string
+	parser string
+}{
+	{"https://httpbin.org/ip", "httpbin"},
+	{"http://ip-api.com/json/?lang=zh-CN", "ip-api"},
 }
 
 type proxyProbeService struct {
@@ -73,8 +82,15 @@ func (s *proxyProbeService) ProbeProxy(ctx context.Context, proxyURL string) (*s
 		return nil, 0, fmt.Errorf("failed to create proxy client: %w", err)
 	}
 
+	probes := probeURLs
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(proxyURL)), "chain://") {
+		// Chained HTTP proxy dialing uses CONNECT for each hop. Some proxies reject
+		// CONNECT to port 80, so prefer an HTTPS probe that matches real AI traffic.
+		probes = chainProbeURLs
+	}
+
 	var lastErr error
-	for _, probe := range probeURLs {
+	for _, probe := range probes {
 		exitInfo, latencyMs, err := s.probeWithURL(ctx, client, probe.url, probe.parser)
 		if err == nil {
 			return exitInfo, latencyMs, nil
