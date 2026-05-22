@@ -34,25 +34,25 @@ type ProxyRepository interface {
 
 // CreateProxyRequest 创建代理请求
 type CreateProxyRequest struct {
-	Name     string `json:"name"`
-	Protocol string `json:"protocol"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Name            string `json:"name"`
+	Protocol        string `json:"protocol"`
+	Host            string `json:"host"`
+	Port            int    `json:"port"`
+	Username        string `json:"username"`
+	Password        string `json:"password"`
 	UpstreamProxyID *int64 `json:"upstream_proxy_id"`
 }
 
 // UpdateProxyRequest 更新代理请求
 type UpdateProxyRequest struct {
-	Name     *string `json:"name"`
-	Protocol *string `json:"protocol"`
-	Host     *string `json:"host"`
-	Port     *int    `json:"port"`
-	Username *string `json:"username"`
-	Password *string `json:"password"`
-	Status   *string `json:"status"`
-	UpstreamProxyID *int64 `json:"upstream_proxy_id"`
+	Name            *string `json:"name"`
+	Protocol        *string `json:"protocol"`
+	Host            *string `json:"host"`
+	Port            *int    `json:"port"`
+	Username        *string `json:"username"`
+	Password        *string `json:"password"`
+	Status          *string `json:"status"`
+	UpstreamProxyID *int64  `json:"upstream_proxy_id"`
 }
 
 // ProxyService 代理管理服务
@@ -71,13 +71,13 @@ func NewProxyService(proxyRepo ProxyRepository) *ProxyService {
 func (s *ProxyService) Create(ctx context.Context, req CreateProxyRequest) (*Proxy, error) {
 	// 创建代理
 	proxy := &Proxy{
-		Name:     req.Name,
-		Protocol: req.Protocol,
-		Host:     req.Host,
-		Port:     req.Port,
-		Username: req.Username,
-		Password: req.Password,
-		Status:   StatusActive,
+		Name:            req.Name,
+		Protocol:        req.Protocol,
+		Host:            req.Host,
+		Port:            req.Port,
+		Username:        req.Username,
+		Password:        req.Password,
+		Status:          StatusActive,
 		UpstreamProxyID: req.UpstreamProxyID,
 	}
 
