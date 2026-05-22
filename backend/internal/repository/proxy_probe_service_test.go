@@ -166,6 +166,21 @@ func (s *ProxyProbeServiceSuite) TestParseHTTPBin_NoIP() {
 	require.ErrorContains(s.T(), err, "no IP found")
 }
 
+func (s *ProxyProbeServiceSuite) TestParseIPify_Success() {
+	body := []byte(`{"ip": "4.3.2.1"}`)
+	info, latencyMs, err := s.prober.parseIPify(body, 25)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), int64(25), latencyMs)
+	require.Equal(s.T(), "4.3.2.1", info.IP)
+}
+
+func (s *ProxyProbeServiceSuite) TestParseIPify_NoIP() {
+	body := []byte(`{"ip": ""}`)
+	_, _, err := s.prober.parseIPify(body, 25)
+	require.Error(s.T(), err)
+	require.ErrorContains(s.T(), err, "no IP found")
+}
+
 func TestProxyProbeServiceSuite(t *testing.T) {
 	suite.Run(t, new(ProxyProbeServiceSuite))
 }

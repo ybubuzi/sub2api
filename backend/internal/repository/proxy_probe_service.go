@@ -60,7 +60,7 @@ var chainProbeURLs = []struct {
 	parser string
 }{
 	{"https://httpbin.org/ip", "httpbin"},
-	{"http://ip-api.com/json/?lang=zh-CN", "ip-api"},
+	{"https://api.ipify.org?format=json", "ipify"},
 }
 
 type proxyProbeService struct {
@@ -137,6 +137,8 @@ func (s *proxyProbeService) probeWithURL(ctx context.Context, client *http.Clien
 		return s.parseIPAPI(body, latencyMs)
 	case "httpbin":
 		return s.parseHTTPBin(body, latencyMs)
+	case "ipify":
+		return s.parseIPify(body, latencyMs)
 	default:
 		return nil, latencyMs, fmt.Errorf("unknown parser: %s", parser)
 	}
@@ -195,4 +197,17 @@ func (s *proxyProbeService) parseHTTPBin(body []byte, latencyMs int64) (*service
 	return &service.ProxyExitInfo{
 		IP: result.Origin,
 	}, latencyMs, nil
+}
+
+func (s *proxyProbeService) parseIPify(body []byte, latencyMs int64) (*service.ProxyExitInfo, int64, error) {
+	var result struct {
+		IP string `json:"ip"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, latencyMs, fmt.Errorf("failed to parse ipify response: %w", err)
+	}
+	if result.IP == "" {
+		return nil, latencyMs, fmt.Errorf("ipify: no IP found in response")
+	}
+	return &service.ProxyExitInfo{IP: result.IP}, latencyMs, nil
 }
