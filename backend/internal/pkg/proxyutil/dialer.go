@@ -10,12 +10,17 @@
 package proxyutil
 
 import (
+	"bufio"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/net/proxy"
 )
@@ -61,7 +66,140 @@ func ConfigureTransportProxy(transport *http.Transport, proxyURL *url.URL) error
 		}
 		return nil
 
+	case "chain":
+		chainProxyURLs, err := chainProxyURLs(proxyURL)
+		if err != nil {
+			return err
+		}
+		transport.DialContext = chainDialContext(chainProxyURLs)
+		transport.Proxy = nil
+		return nil
+
 	default:
 		return fmt.Errorf("unsupported proxy scheme: %s", scheme)
 	}
+}
+
+func chainProxyURLs(proxyURL *url.URL) ([]*url.URL, error) {
+	upstreamRaw := strings.TrimSpace(proxyURL.Query().Get("upstream"))
+	proxyRaw := strings.TrimSpace(proxyURL.Query().Get("proxy"))
+	if upstreamRaw == "" || proxyRaw == "" {
+		return nil, fmt.Errorf("chain proxy requires upstream and proxy")
+	}
+	upstreamURL, err := url.Parse(upstreamRaw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid chain upstream proxy")
+	}
+	nextProxyURL, err := url.Parse(proxyRaw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid chain next proxy")
+	}
+	if strings.EqualFold(upstreamURL.Scheme, "chain") {
+		urls, err := chainProxyURLs(upstreamURL)
+		if err != nil {
+			return nil, err
+		}
+		return append(urls, nextProxyURL), nil
+	}
+	return []*url.URL{upstreamURL, nextProxyURL}, nil
+}
+
+func chainDialContext(proxyURLs []*url.URL) func(context.Context, string, string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if network != "tcp" && network != "tcp4" && network != "tcp6" {
+			return nil, fmt.Errorf("unsupported chain proxy network: %s", network)
+		}
+
+		if len(proxyURLs) == 0 {
+			return nil, fmt.Errorf("empty chain proxy")
+		}
+		conn, err := dialProxy(ctx, proxyURLs[0])
+		if err != nil {
+			return nil, err
+		}
+		for i, current := range proxyURLs {
+			target := addr
+			if i+1 < len(proxyURLs) {
+				target = proxyHostPort(proxyURLs[i+1])
+			}
+			if err := connectHTTPProxy(ctx, conn, target, current.User); err != nil {
+				_ = conn.Close()
+				return nil, fmt.Errorf("connect chain hop %d: %w", i+1, err)
+			}
+		}
+		return conn, nil
+	}
+}
+
+func proxyHostPort(proxyURL *url.URL) string {
+	if proxyURL == nil {
+		return ""
+	}
+	if strings.Contains(proxyURL.Host, ":") {
+		return proxyURL.Host
+	}
+	port := "80"
+	if strings.EqualFold(proxyURL.Scheme, "https") {
+		port = "443"
+	}
+	return net.JoinHostPort(proxyURL.Hostname(), port)
+}
+
+func dialProxy(ctx context.Context, proxyURL *url.URL) (net.Conn, error) {
+	if proxyURL == nil {
+		return nil, fmt.Errorf("proxy URL is nil")
+	}
+	host := proxyHostPort(proxyURL)
+	dialer := &net.Dialer{Timeout: 5 * time.Second}
+	return dialer.DialContext(ctx, "tcp", host)
+}
+
+func connectHTTPProxy(ctx context.Context, conn net.Conn, target string, user *url.Userinfo) error {
+	deadline, hasDeadline := ctx.Deadline()
+	if !hasDeadline {
+		deadline = time.Now().Add(10 * time.Second)
+	}
+	_ = conn.SetDeadline(deadline)
+	defer func() { _ = conn.SetDeadline(time.Time{}) }()
+
+	var b strings.Builder
+	b.WriteString("CONNECT ")
+	b.WriteString(target)
+	b.WriteString(" HTTP/1.1\r\nHost: ")
+	b.WriteString(target)
+	b.WriteString("\r\nConnection: keep-alive\r\n")
+	if user != nil {
+		username := user.Username()
+		password, _ := user.Password()
+		token := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+		b.WriteString("Proxy-Authorization: Basic ")
+		b.WriteString(token)
+		b.WriteString("\r\n")
+	}
+	b.WriteString("\r\n")
+	if _, err := io.WriteString(conn, b.String()); err != nil {
+		return err
+	}
+
+	reader := bufio.NewReader(conn)
+	resp, err := http.ReadResponse(reader, &http.Request{Method: http.MethodConnect})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status %s", resp.Status)
+	}
+	if reader.Buffered() > 0 {
+		return &bufferedConnectUnsupportedError{n: reader.Buffered()}
+	}
+	return nil
+}
+
+type bufferedConnectUnsupportedError struct {
+	n int
+}
+
+func (e *bufferedConnectUnsupportedError) Error() string {
+	return "unexpected buffered proxy data after CONNECT: " + strconv.Itoa(e.n)
 }

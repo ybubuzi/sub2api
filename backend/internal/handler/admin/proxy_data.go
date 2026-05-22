@@ -47,18 +47,30 @@ func (h *ProxyHandler) ExportData(c *gin.Context) {
 	}
 
 	dataProxies := make([]DataProxy, 0, len(proxies))
+	proxyKeyByID := make(map[int64]string, len(proxies))
+	for i := range proxies {
+		p := proxies[i]
+		proxyKeyByID[p.ID] = buildProxyKey(p.Protocol, p.Host, p.Port, p.Username, p.Password)
+	}
 	for i := range proxies {
 		p := proxies[i]
 		key := buildProxyKey(p.Protocol, p.Host, p.Port, p.Username, p.Password)
+		var upstreamProxyKey *string
+		if p.UpstreamProxyID != nil {
+			if value, ok := proxyKeyByID[*p.UpstreamProxyID]; ok {
+				upstreamProxyKey = &value
+			}
+		}
 		dataProxies = append(dataProxies, DataProxy{
-			ProxyKey: key,
-			Name:     p.Name,
-			Protocol: p.Protocol,
-			Host:     p.Host,
-			Port:     p.Port,
-			Username: p.Username,
-			Password: p.Password,
-			Status:   p.Status,
+			ProxyKey:         key,
+			Name:             p.Name,
+			Protocol:         p.Protocol,
+			Host:             p.Host,
+			Port:             p.Port,
+			Username:         p.Username,
+			Password:         p.Password,
+			Status:           p.Status,
+			UpstreamProxyKey: upstreamProxyKey,
 		})
 	}
 
@@ -105,6 +117,7 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 	}
 
 	latencyProbeIDs := make([]int64, 0, len(req.Data.Proxies))
+	createdOrReusedByKey := make(map[string]service.Proxy, len(req.Data.Proxies))
 	for i := range req.Data.Proxies {
 		item := req.Data.Proxies[i]
 		key := item.ProxyKey
@@ -126,6 +139,7 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 		normalizedStatus := normalizeProxyStatus(item.Status)
 		if existing, ok := proxyByKey[key]; ok {
 			result.ProxyReused++
+			createdOrReusedByKey[key] = existing
 			if normalizedStatus != "" && normalizedStatus != existing.Status {
 				if _, err := h.adminService.UpdateProxy(ctx, existing.ID, &service.UpdateProxyInput{Status: normalizedStatus}); err != nil {
 					result.Errors = append(result.Errors, DataImportError{
@@ -160,6 +174,7 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 		}
 		result.ProxyCreated++
 		proxyByKey[key] = *created
+		createdOrReusedByKey[key] = *created
 
 		if normalizedStatus != "" && normalizedStatus != created.Status {
 			if _, err := h.adminService.UpdateProxy(ctx, created.ID, &service.UpdateProxyInput{Status: normalizedStatus}); err != nil {
@@ -172,6 +187,34 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 			}
 		}
 		// CreateProxy already triggers a latency probe, avoid double probing here.
+	}
+
+	for i := range req.Data.Proxies {
+		item := req.Data.Proxies[i]
+		if item.UpstreamProxyKey == nil || strings.TrimSpace(*item.UpstreamProxyKey) == "" {
+			continue
+		}
+		key := item.ProxyKey
+		if key == "" {
+			key = buildProxyKey(item.Protocol, item.Host, item.Port, item.Username, item.Password)
+		}
+		current, ok := createdOrReusedByKey[key]
+		if !ok {
+			continue
+		}
+		upstream, ok := createdOrReusedByKey[strings.TrimSpace(*item.UpstreamProxyKey)]
+		if !ok {
+			continue
+		}
+		upstreamID := upstream.ID
+		if _, err := h.adminService.UpdateProxy(ctx, current.ID, &service.UpdateProxyInput{UpstreamProxyID: &upstreamID}); err != nil {
+			result.Errors = append(result.Errors, DataImportError{
+				Kind:     "proxy",
+				Name:     item.Name,
+				ProxyKey: key,
+				Message:  "update upstream proxy failed: " + err.Error(),
+			})
+		}
 	}
 
 	if len(latencyProbeIDs) > 0 {

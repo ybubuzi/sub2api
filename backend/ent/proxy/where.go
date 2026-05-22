@@ -105,6 +105,11 @@ func Status(v string) predicate.Proxy {
 	return predicate.Proxy(sql.FieldEQ(FieldStatus, v))
 }
 
+// UpstreamProxyID applies equality check predicate on the "upstream_proxy_id" field. It's identical to UpstreamProxyIDEQ.
+func UpstreamProxyID(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldEQ(FieldUpstreamProxyID, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Proxy {
 	return predicate.Proxy(sql.FieldEQ(FieldCreatedAt, v))
@@ -685,6 +690,36 @@ func StatusContainsFold(v string) predicate.Proxy {
 	return predicate.Proxy(sql.FieldContainsFold(FieldStatus, v))
 }
 
+// UpstreamProxyIDEQ applies the EQ predicate on the "upstream_proxy_id" field.
+func UpstreamProxyIDEQ(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldEQ(FieldUpstreamProxyID, v))
+}
+
+// UpstreamProxyIDNEQ applies the NEQ predicate on the "upstream_proxy_id" field.
+func UpstreamProxyIDNEQ(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldNEQ(FieldUpstreamProxyID, v))
+}
+
+// UpstreamProxyIDIn applies the In predicate on the "upstream_proxy_id" field.
+func UpstreamProxyIDIn(vs ...int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldIn(FieldUpstreamProxyID, vs...))
+}
+
+// UpstreamProxyIDNotIn applies the NotIn predicate on the "upstream_proxy_id" field.
+func UpstreamProxyIDNotIn(vs ...int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldNotIn(FieldUpstreamProxyID, vs...))
+}
+
+// UpstreamProxyIDIsNil applies the IsNil predicate on the "upstream_proxy_id" field.
+func UpstreamProxyIDIsNil() predicate.Proxy {
+	return predicate.Proxy(sql.FieldIsNull(FieldUpstreamProxyID))
+}
+
+// UpstreamProxyIDNotNil applies the NotNil predicate on the "upstream_proxy_id" field.
+func UpstreamProxyIDNotNil() predicate.Proxy {
+	return predicate.Proxy(sql.FieldNotNull(FieldUpstreamProxyID))
+}
+
 // HasAccounts applies the HasEdge predicate on the "accounts" edge.
 func HasAccounts() predicate.Proxy {
 	return predicate.Proxy(func(s *sql.Selector) {
@@ -700,6 +735,29 @@ func HasAccounts() predicate.Proxy {
 func HasAccountsWith(preds ...predicate.Account) predicate.Proxy {
 	return predicate.Proxy(func(s *sql.Selector) {
 		step := newAccountsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasUpstreamProxy applies the HasEdge predicate on the "upstream_proxy" edge.
+func HasUpstreamProxy() predicate.Proxy {
+	return predicate.Proxy(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, UpstreamProxyTable, UpstreamProxyColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasUpstreamProxyWith applies the HasEdge predicate on the "upstream_proxy" edge with a given conditions (other predicates).
+func HasUpstreamProxyWith(preds ...predicate.Proxy) predicate.Proxy {
+	return predicate.Proxy(func(s *sql.Selector) {
+		step := newUpstreamProxyStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

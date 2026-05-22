@@ -418,7 +418,7 @@ func ProxyFromService(p *service.Proxy) *Proxy {
 	if p == nil {
 		return nil
 	}
-	return &Proxy{
+	out := &Proxy{
 		ID:        p.ID,
 		Name:      p.Name,
 		Protocol:  p.Protocol,
@@ -426,9 +426,14 @@ func ProxyFromService(p *service.Proxy) *Proxy {
 		Port:      p.Port,
 		Username:  p.Username,
 		Status:    p.Status,
+		UpstreamProxyID: p.UpstreamProxyID,
 		CreatedAt: p.CreatedAt,
 		UpdatedAt: p.UpdatedAt,
 	}
+	if p.UpstreamProxy != nil {
+		out.UpstreamProxyName = p.UpstreamProxy.Name
+	}
+	return out
 }
 
 func ProxyWithAccountCountFromService(p *service.ProxyWithAccountCount) *ProxyWithAccountCount {

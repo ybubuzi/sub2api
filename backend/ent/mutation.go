@@ -27895,27 +27895,29 @@ func (m *PromoCodeUsageMutation) ResetEdge(name string) error {
 // ProxyMutation represents an operation that mutates the Proxy nodes in the graph.
 type ProxyMutation struct {
 	config
-	op              Op
-	typ             string
-	id              *int64
-	created_at      *time.Time
-	updated_at      *time.Time
-	deleted_at      *time.Time
-	name            *string
-	protocol        *string
-	host            *string
-	port            *int
-	addport         *int
-	username        *string
-	password        *string
-	status          *string
-	clearedFields   map[string]struct{}
-	accounts        map[int64]struct{}
-	removedaccounts map[int64]struct{}
-	clearedaccounts bool
-	done            bool
-	oldValue        func(context.Context) (*Proxy, error)
-	predicates      []predicate.Proxy
+	op                    Op
+	typ                   string
+	id                    *int64
+	created_at            *time.Time
+	updated_at            *time.Time
+	deleted_at            *time.Time
+	name                  *string
+	protocol              *string
+	host                  *string
+	port                  *int
+	addport               *int
+	username              *string
+	password              *string
+	status                *string
+	clearedFields         map[string]struct{}
+	accounts              map[int64]struct{}
+	removedaccounts       map[int64]struct{}
+	clearedaccounts       bool
+	upstream_proxy        *int64
+	clearedupstream_proxy bool
+	done                  bool
+	oldValue              func(context.Context) (*Proxy, error)
+	predicates            []predicate.Proxy
 }
 
 var _ ent.Mutation = (*ProxyMutation)(nil)
@@ -28435,6 +28437,55 @@ func (m *ProxyMutation) ResetStatus() {
 	m.status = nil
 }
 
+// SetUpstreamProxyID sets the "upstream_proxy_id" field.
+func (m *ProxyMutation) SetUpstreamProxyID(i int64) {
+	m.upstream_proxy = &i
+}
+
+// UpstreamProxyID returns the value of the "upstream_proxy_id" field in the mutation.
+func (m *ProxyMutation) UpstreamProxyID() (r int64, exists bool) {
+	v := m.upstream_proxy
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamProxyID returns the old "upstream_proxy_id" field's value of the Proxy entity.
+// If the Proxy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ProxyMutation) OldUpstreamProxyID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamProxyID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamProxyID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamProxyID: %w", err)
+	}
+	return oldValue.UpstreamProxyID, nil
+}
+
+// ClearUpstreamProxyID clears the value of the "upstream_proxy_id" field.
+func (m *ProxyMutation) ClearUpstreamProxyID() {
+	m.upstream_proxy = nil
+	m.clearedFields[proxy.FieldUpstreamProxyID] = struct{}{}
+}
+
+// UpstreamProxyIDCleared returns if the "upstream_proxy_id" field was cleared in this mutation.
+func (m *ProxyMutation) UpstreamProxyIDCleared() bool {
+	_, ok := m.clearedFields[proxy.FieldUpstreamProxyID]
+	return ok
+}
+
+// ResetUpstreamProxyID resets all changes to the "upstream_proxy_id" field.
+func (m *ProxyMutation) ResetUpstreamProxyID() {
+	m.upstream_proxy = nil
+	delete(m.clearedFields, proxy.FieldUpstreamProxyID)
+}
+
 // AddAccountIDs adds the "accounts" edge to the Account entity by ids.
 func (m *ProxyMutation) AddAccountIDs(ids ...int64) {
 	if m.accounts == nil {
@@ -28489,6 +28540,33 @@ func (m *ProxyMutation) ResetAccounts() {
 	m.removedaccounts = nil
 }
 
+// ClearUpstreamProxy clears the "upstream_proxy" edge to the Proxy entity.
+func (m *ProxyMutation) ClearUpstreamProxy() {
+	m.clearedupstream_proxy = true
+	m.clearedFields[proxy.FieldUpstreamProxyID] = struct{}{}
+}
+
+// UpstreamProxyCleared reports if the "upstream_proxy" edge to the Proxy entity was cleared.
+func (m *ProxyMutation) UpstreamProxyCleared() bool {
+	return m.UpstreamProxyIDCleared() || m.clearedupstream_proxy
+}
+
+// UpstreamProxyIDs returns the "upstream_proxy" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UpstreamProxyID instead. It exists only for internal usage by the builders.
+func (m *ProxyMutation) UpstreamProxyIDs() (ids []int64) {
+	if id := m.upstream_proxy; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUpstreamProxy resets all changes to the "upstream_proxy" edge.
+func (m *ProxyMutation) ResetUpstreamProxy() {
+	m.upstream_proxy = nil
+	m.clearedupstream_proxy = false
+}
+
 // Where appends a list predicates to the ProxyMutation builder.
 func (m *ProxyMutation) Where(ps ...predicate.Proxy) {
 	m.predicates = append(m.predicates, ps...)
@@ -28523,7 +28601,7 @@ func (m *ProxyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ProxyMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 11)
 	if m.created_at != nil {
 		fields = append(fields, proxy.FieldCreatedAt)
 	}
@@ -28554,6 +28632,9 @@ func (m *ProxyMutation) Fields() []string {
 	if m.status != nil {
 		fields = append(fields, proxy.FieldStatus)
 	}
+	if m.upstream_proxy != nil {
+		fields = append(fields, proxy.FieldUpstreamProxyID)
+	}
 	return fields
 }
 
@@ -28582,6 +28663,8 @@ func (m *ProxyMutation) Field(name string) (ent.Value, bool) {
 		return m.Password()
 	case proxy.FieldStatus:
 		return m.Status()
+	case proxy.FieldUpstreamProxyID:
+		return m.UpstreamProxyID()
 	}
 	return nil, false
 }
@@ -28611,6 +28694,8 @@ func (m *ProxyMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldPassword(ctx)
 	case proxy.FieldStatus:
 		return m.OldStatus(ctx)
+	case proxy.FieldUpstreamProxyID:
+		return m.OldUpstreamProxyID(ctx)
 	}
 	return nil, fmt.Errorf("unknown Proxy field %s", name)
 }
@@ -28690,6 +28775,13 @@ func (m *ProxyMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetStatus(v)
 		return nil
+	case proxy.FieldUpstreamProxyID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamProxyID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Proxy field %s", name)
 }
@@ -28744,6 +28836,9 @@ func (m *ProxyMutation) ClearedFields() []string {
 	if m.FieldCleared(proxy.FieldPassword) {
 		fields = append(fields, proxy.FieldPassword)
 	}
+	if m.FieldCleared(proxy.FieldUpstreamProxyID) {
+		fields = append(fields, proxy.FieldUpstreamProxyID)
+	}
 	return fields
 }
 
@@ -28766,6 +28861,9 @@ func (m *ProxyMutation) ClearField(name string) error {
 		return nil
 	case proxy.FieldPassword:
 		m.ClearPassword()
+		return nil
+	case proxy.FieldUpstreamProxyID:
+		m.ClearUpstreamProxyID()
 		return nil
 	}
 	return fmt.Errorf("unknown Proxy nullable field %s", name)
@@ -28805,15 +28903,21 @@ func (m *ProxyMutation) ResetField(name string) error {
 	case proxy.FieldStatus:
 		m.ResetStatus()
 		return nil
+	case proxy.FieldUpstreamProxyID:
+		m.ResetUpstreamProxyID()
+		return nil
 	}
 	return fmt.Errorf("unknown Proxy field %s", name)
 }
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *ProxyMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.accounts != nil {
 		edges = append(edges, proxy.EdgeAccounts)
+	}
+	if m.upstream_proxy != nil {
+		edges = append(edges, proxy.EdgeUpstreamProxy)
 	}
 	return edges
 }
@@ -28828,13 +28932,17 @@ func (m *ProxyMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case proxy.EdgeUpstreamProxy:
+		if id := m.upstream_proxy; id != nil {
+			return []ent.Value{*id}
+		}
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *ProxyMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.removedaccounts != nil {
 		edges = append(edges, proxy.EdgeAccounts)
 	}
@@ -28857,9 +28965,12 @@ func (m *ProxyMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *ProxyMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.clearedaccounts {
 		edges = append(edges, proxy.EdgeAccounts)
+	}
+	if m.clearedupstream_proxy {
+		edges = append(edges, proxy.EdgeUpstreamProxy)
 	}
 	return edges
 }
@@ -28870,6 +28981,8 @@ func (m *ProxyMutation) EdgeCleared(name string) bool {
 	switch name {
 	case proxy.EdgeAccounts:
 		return m.clearedaccounts
+	case proxy.EdgeUpstreamProxy:
+		return m.clearedupstream_proxy
 	}
 	return false
 }
@@ -28878,6 +28991,9 @@ func (m *ProxyMutation) EdgeCleared(name string) bool {
 // if that edge is not defined in the schema.
 func (m *ProxyMutation) ClearEdge(name string) error {
 	switch name {
+	case proxy.EdgeUpstreamProxy:
+		m.ClearUpstreamProxy()
+		return nil
 	}
 	return fmt.Errorf("unknown Proxy unique edge %s", name)
 }
@@ -28888,6 +29004,9 @@ func (m *ProxyMutation) ResetEdge(name string) error {
 	switch name {
 	case proxy.EdgeAccounts:
 		m.ResetAccounts()
+		return nil
+	case proxy.EdgeUpstreamProxy:
+		m.ResetUpstreamProxy()
 		return nil
 	}
 	return fmt.Errorf("unknown Proxy edge %s", name)

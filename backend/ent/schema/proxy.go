@@ -52,6 +52,9 @@ func (Proxy) Fields() []ent.Field {
 		field.String("status").
 			MaxLen(20).
 			Default("active"),
+		field.Int64("upstream_proxy_id").
+			Optional().
+			Nillable(),
 	}
 }
 
@@ -61,6 +64,9 @@ func (Proxy) Edges() []ent.Edge {
 		// accounts: 使用此代理的账户（反向边）
 		edge.From("accounts", Account.Type).
 			Ref("proxy"),
+		edge.To("upstream_proxy", Proxy.Type).
+			Unique().
+			Field("upstream_proxy_id"),
 	}
 }
 

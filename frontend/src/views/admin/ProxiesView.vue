@@ -133,8 +133,9 @@
           </template>
 
           <template #cell-address="{ row }">
-            <div class="flex items-center gap-1.5">
-              <code class="code text-xs">{{ row.host }}:{{ row.port }}</code>
+            <div class="flex flex-col gap-1">
+              <div class="flex items-center gap-1.5">
+                <code class="code text-xs">{{ row.host }}:{{ row.port }}</code>
               <div class="relative">
                 <button
                   type="button"
@@ -159,6 +160,10 @@
                     <span class="truncate font-mono text-gray-600 dark:text-gray-300">{{ fmt.label }}</span>
                   </button>
                 </div>
+              </div>
+              </div>
+              <div v-if="row.upstream_proxy_id" class="text-xs text-gray-500 dark:text-gray-400">
+                上游: {{ row.upstream_proxy_name || `#${row.upstream_proxy_id}` }}
               </div>
             </div>
           </template>
@@ -475,6 +480,16 @@
             </button>
           </div>
         </div>
+        <div>
+          <label class="input-label">上游代理</label>
+          <select v-model="createForm.upstream_proxy_id" class="input">
+            <option :value="null">无，直接使用当前代理</option>
+            <option v-for="proxy in upstreamProxyOptions" :key="proxy.id" :value="proxy.id">
+              {{ proxy.name }} - {{ proxy.host }}:{{ proxy.port }}
+            </option>
+          </select>
+          <p class="input-hint mt-1">选择后，请求会先经过上游代理，再连接当前代理。</p>
+        </div>
 
       </form>
 
@@ -672,6 +687,16 @@
         <div>
           <label class="input-label">{{ t('admin.proxies.status') }}</label>
           <Select v-model="editForm.status" :options="editStatusOptions" />
+        </div>
+        <div>
+          <label class="input-label">上游代理</label>
+          <select v-model="editForm.upstream_proxy_id" class="input">
+            <option :value="null">无，直接使用当前代理</option>
+            <option v-for="proxy in editUpstreamProxyOptions" :key="proxy.id" :value="proxy.id">
+              {{ proxy.name }} - {{ proxy.host }}:{{ proxy.port }}
+            </option>
+          </select>
+          <p class="input-hint mt-1">不能选择当前代理自身，后台也会校验循环链路。</p>
         </div>
 
       </form>
@@ -1012,6 +1037,11 @@ const showQualityReportDialog = ref(false)
 const qualityReportProxy = ref<Proxy | null>(null)
 const qualityReport = ref<ProxyQualityCheckResult | null>(null)
 
+const upstreamProxyOptions = computed(() => proxies.value.filter((proxy) => proxy.status === 'active'))
+const editUpstreamProxyOptions = computed(() =>
+  proxies.value.filter((proxy) => proxy.status === 'active' && proxy.id !== editingProxy.value?.id)
+)
+
 // Batch import state
 const createMode = ref<'standard' | 'batch'>('standard')
 const batchInput = ref('')
@@ -1035,7 +1065,8 @@ const createForm = reactive({
   host: '',
   port: 8080,
   username: '',
-  password: ''
+  password: '',
+  upstream_proxy_id: null as number | null
 })
 
 const editForm = reactive({
@@ -1045,7 +1076,8 @@ const editForm = reactive({
   port: 8080,
   username: '',
   password: '',
-  status: 'active' as 'active' | 'inactive'
+  status: 'active' as 'active' | 'inactive',
+  upstream_proxy_id: null as number | null
 })
 
 let abortController: AbortController | null = null
@@ -1148,6 +1180,7 @@ const closeCreateModal = () => {
   createForm.port = 8080
   createForm.username = ''
   createForm.password = ''
+  createForm.upstream_proxy_id = null
   createPasswordVisible.value = false
   batchInput.value = ''
   batchParseResult.total = 0
@@ -1272,7 +1305,8 @@ const handleCreateProxy = async () => {
       host: createForm.host.trim(),
       port: createForm.port,
       username: createForm.username.trim() || null,
-      password: createForm.password.trim() || null
+      password: createForm.password.trim() || null,
+      upstream_proxy_id: createForm.upstream_proxy_id
     })
     appStore.showSuccess(t('admin.proxies.proxyCreated'))
     closeCreateModal()
@@ -1294,6 +1328,7 @@ const handleEdit = (proxy: Proxy) => {
   editForm.username = proxy.username || ''
   editForm.password = proxy.password || ''
   editForm.status = proxy.status
+  editForm.upstream_proxy_id = proxy.upstream_proxy_id || null
   editPasswordVisible.value = false
   editPasswordDirty.value = false
   showEditModal.value = true
@@ -1329,7 +1364,8 @@ const handleUpdateProxy = async () => {
       host: editForm.host.trim(),
       port: editForm.port,
       username: editForm.username.trim() || null,
-      status: editForm.status
+      status: editForm.status,
+      upstream_proxy_id: editForm.upstream_proxy_id
     }
 
     // Only include password if user actually modified the field

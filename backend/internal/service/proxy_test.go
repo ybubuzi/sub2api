@@ -2,6 +2,7 @@ package service
 
 import (
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -64,6 +65,33 @@ func TestProxyURL(t *testing.T) {
 				t.Fatalf("Proxy.URL() mismatch: got=%q want=%q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestProxyURL_Chained(t *testing.T) {
+	upstream := &Proxy{
+		Protocol: "http",
+		Host:     "127.0.0.1",
+		Port:     7897,
+	}
+	current := &Proxy{
+		Protocol:      "http",
+		Host:          "45.56.171.66",
+		Port:          7567,
+		Username:      "user",
+		Password:      "pass",
+		UpstreamProxy: upstream,
+	}
+
+	got := current.URL()
+	if !strings.HasPrefix(got, "chain://proxy?") {
+		t.Fatalf("Proxy.URL() chain scheme mismatch: got=%q", got)
+	}
+	if !strings.Contains(got, "upstream=http%3A%2F%2F127.0.0.1%3A7897") {
+		t.Fatalf("Proxy.URL() missing upstream: got=%q", got)
+	}
+	if !strings.Contains(got, "proxy=http%3A%2F%2Fuser%3Apass%4045.56.171.66%3A7567") {
+		t.Fatalf("Proxy.URL() missing current proxy: got=%q", got)
 	}
 }
 

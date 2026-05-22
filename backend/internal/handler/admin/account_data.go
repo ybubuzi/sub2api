@@ -41,6 +41,7 @@ type DataProxy struct {
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
 	Status   string `json:"status"`
+	UpstreamProxyKey *string `json:"upstream_proxy_key,omitempty"`
 }
 
 // DataAccount 是管理员显式备份导出使用的账号结构，故意不走 dto.Account 的脱敏路径，
@@ -122,17 +123,27 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 	dataProxies := make([]DataProxy, 0, len(proxies))
 	for i := range proxies {
 		p := proxies[i]
+		proxyKeyByID[p.ID] = buildProxyKey(p.Protocol, p.Host, p.Port, p.Username, p.Password)
+	}
+	for i := range proxies {
+		p := proxies[i]
 		key := buildProxyKey(p.Protocol, p.Host, p.Port, p.Username, p.Password)
-		proxyKeyByID[p.ID] = key
+		var upstreamProxyKey *string
+		if p.UpstreamProxyID != nil {
+			if upstreamKey, ok := proxyKeyByID[*p.UpstreamProxyID]; ok {
+				upstreamProxyKey = &upstreamKey
+			}
+		}
 		dataProxies = append(dataProxies, DataProxy{
-			ProxyKey: key,
-			Name:     p.Name,
-			Protocol: p.Protocol,
-			Host:     p.Host,
-			Port:     p.Port,
-			Username: p.Username,
-			Password: p.Password,
-			Status:   p.Status,
+			ProxyKey:         key,
+			Name:             p.Name,
+			Protocol:         p.Protocol,
+			Host:             p.Host,
+			Port:             p.Port,
+			Username:         p.Username,
+			Password:         p.Password,
+			Status:           p.Status,
+			UpstreamProxyKey: upstreamProxyKey,
 		})
 	}
 
@@ -269,6 +280,32 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 				Status: normalizedStatus,
 			})
 		}
+	}
+
+	for i := range dataPayload.Proxies {
+		item := dataPayload.Proxies[i]
+		if item.UpstreamProxyKey == nil || strings.TrimSpace(*item.UpstreamProxyKey) == "" {
+			continue
+		}
+		key := item.ProxyKey
+		if key == "" {
+			key = buildProxyKey(item.Protocol, item.Host, item.Port, item.Username, item.Password)
+		}
+		currentID, ok := proxyKeyToID[key]
+		if !ok {
+			continue
+		}
+		upstreamID, ok := proxyKeyToID[strings.TrimSpace(*item.UpstreamProxyKey)]
+		if !ok {
+			result.Errors = append(result.Errors, DataImportError{
+				Kind:     "proxy",
+				Name:     item.Name,
+				ProxyKey: key,
+				Message:  "upstream_proxy_key not found",
+			})
+			continue
+		}
+		_, _ = h.adminService.UpdateProxy(ctx, currentID, &service.UpdateProxyInput{UpstreamProxyID: &upstreamID})
 	}
 
 	// 收集需要异步设置隐私的 Antigravity OAuth 账号

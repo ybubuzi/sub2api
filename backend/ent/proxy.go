@@ -37,6 +37,8 @@ type Proxy struct {
 	Password *string `json:"password,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
+	// UpstreamProxyID holds the value of the "upstream_proxy_id" field.
+	UpstreamProxyID *int64 `json:"upstream_proxy_id,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the ProxyQuery when eager-loading is set.
 	Edges        ProxyEdges `json:"edges"`
@@ -47,9 +49,11 @@ type Proxy struct {
 type ProxyEdges struct {
 	// Accounts holds the value of the accounts edge.
 	Accounts []*Account `json:"accounts,omitempty"`
+	// UpstreamProxy holds the value of the upstream_proxy edge.
+	UpstreamProxy *Proxy `json:"upstream_proxy,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // AccountsOrErr returns the Accounts value or an error if the edge
@@ -61,12 +65,23 @@ func (e ProxyEdges) AccountsOrErr() ([]*Account, error) {
 	return nil, &NotLoadedError{edge: "accounts"}
 }
 
+// UpstreamProxyOrErr returns the UpstreamProxy value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e ProxyEdges) UpstreamProxyOrErr() (*Proxy, error) {
+	if e.UpstreamProxy != nil {
+		return e.UpstreamProxy, nil
+	} else if e.loadedTypes[1] {
+		return nil, &NotFoundError{label: proxy.Label}
+	}
+	return nil, &NotLoadedError{edge: "upstream_proxy"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*Proxy) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case proxy.FieldID, proxy.FieldPort:
+		case proxy.FieldID, proxy.FieldPort, proxy.FieldUpstreamProxyID:
 			values[i] = new(sql.NullInt64)
 		case proxy.FieldName, proxy.FieldProtocol, proxy.FieldHost, proxy.FieldUsername, proxy.FieldPassword, proxy.FieldStatus:
 			values[i] = new(sql.NullString)
@@ -156,6 +171,13 @@ func (_m *Proxy) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Status = value.String
 			}
+		case proxy.FieldUpstreamProxyID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_proxy_id", values[i])
+			} else if value.Valid {
+				_m.UpstreamProxyID = new(int64)
+				*_m.UpstreamProxyID = value.Int64
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -172,6 +194,11 @@ func (_m *Proxy) Value(name string) (ent.Value, error) {
 // QueryAccounts queries the "accounts" edge of the Proxy entity.
 func (_m *Proxy) QueryAccounts() *AccountQuery {
 	return NewProxyClient(_m.config).QueryAccounts(_m)
+}
+
+// QueryUpstreamProxy queries the "upstream_proxy" edge of the Proxy entity.
+func (_m *Proxy) QueryUpstreamProxy() *ProxyQuery {
+	return NewProxyClient(_m.config).QueryUpstreamProxy(_m)
 }
 
 // Update returns a builder for updating this Proxy.
@@ -232,6 +259,11 @@ func (_m *Proxy) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(_m.Status)
+	builder.WriteString(", ")
+	if v := _m.UpstreamProxyID; v != nil {
+		builder.WriteString("upstream_proxy_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

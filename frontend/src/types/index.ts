@@ -715,6 +715,8 @@ export interface Proxy {
   username: string | null
   password?: string | null
   status: 'active' | 'inactive'
+  upstream_proxy_id?: number | null
+  upstream_proxy_name?: string | null
   account_count?: number // Number of accounts using this proxy
   latency_ms?: number
   latency_status?: 'success' | 'failed'
@@ -1115,6 +1117,7 @@ export interface CreateProxyRequest {
   port: number
   username?: string | null
   password?: string | null
+  upstream_proxy_id?: number | null
 }
 
 export interface UpdateProxyRequest {
@@ -1125,6 +1128,7 @@ export interface UpdateProxyRequest {
   username?: string | null
   password?: string | null
   status?: 'active' | 'inactive'
+  upstream_proxy_id?: number | null
 }
 
 export interface AdminDataPayload {
@@ -1144,6 +1148,7 @@ export interface AdminDataProxy {
   username?: string | null
   password?: string | null
   status: 'active' | 'inactive'
+  upstream_proxy_key?: string | null
 }
 
 export interface AdminDataAccount {

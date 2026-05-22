@@ -131,6 +131,20 @@ func (_c *ProxyCreate) SetNillableStatus(v *string) *ProxyCreate {
 	return _c
 }
 
+// SetUpstreamProxyID sets the "upstream_proxy_id" field.
+func (_c *ProxyCreate) SetUpstreamProxyID(v int64) *ProxyCreate {
+	_c.mutation.SetUpstreamProxyID(v)
+	return _c
+}
+
+// SetNillableUpstreamProxyID sets the "upstream_proxy_id" field if the given value is not nil.
+func (_c *ProxyCreate) SetNillableUpstreamProxyID(v *int64) *ProxyCreate {
+	if v != nil {
+		_c.SetUpstreamProxyID(*v)
+	}
+	return _c
+}
+
 // AddAccountIDs adds the "accounts" edge to the Account entity by IDs.
 func (_c *ProxyCreate) AddAccountIDs(ids ...int64) *ProxyCreate {
 	_c.mutation.AddAccountIDs(ids...)
@@ -144,6 +158,11 @@ func (_c *ProxyCreate) AddAccounts(v ...*Account) *ProxyCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddAccountIDs(ids...)
+}
+
+// SetUpstreamProxy sets the "upstream_proxy" edge to the Proxy entity.
+func (_c *ProxyCreate) SetUpstreamProxy(v *Proxy) *ProxyCreate {
+	return _c.SetUpstreamProxyID(v.ID)
 }
 
 // Mutation returns the ProxyMutation object of the builder.
@@ -340,6 +359,23 @@ func (_c *ProxyCreate) createSpec() (*Proxy, *sqlgraph.CreateSpec) {
 		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
+	if nodes := _c.mutation.UpstreamProxyIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   proxy.UpstreamProxyTable,
+			Columns: []string{proxy.UpstreamProxyColumn},
+			Bidi:    true,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(proxy.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.UpstreamProxyID = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	return _node, _spec
 }
 
@@ -521,6 +557,24 @@ func (u *ProxyUpsert) SetStatus(v string) *ProxyUpsert {
 // UpdateStatus sets the "status" field to the value that was provided on create.
 func (u *ProxyUpsert) UpdateStatus() *ProxyUpsert {
 	u.SetExcluded(proxy.FieldStatus)
+	return u
+}
+
+// SetUpstreamProxyID sets the "upstream_proxy_id" field.
+func (u *ProxyUpsert) SetUpstreamProxyID(v int64) *ProxyUpsert {
+	u.Set(proxy.FieldUpstreamProxyID, v)
+	return u
+}
+
+// UpdateUpstreamProxyID sets the "upstream_proxy_id" field to the value that was provided on create.
+func (u *ProxyUpsert) UpdateUpstreamProxyID() *ProxyUpsert {
+	u.SetExcluded(proxy.FieldUpstreamProxyID)
+	return u
+}
+
+// ClearUpstreamProxyID clears the value of the "upstream_proxy_id" field.
+func (u *ProxyUpsert) ClearUpstreamProxyID() *ProxyUpsert {
+	u.SetNull(proxy.FieldUpstreamProxyID)
 	return u
 }
 
@@ -720,6 +774,27 @@ func (u *ProxyUpsertOne) SetStatus(v string) *ProxyUpsertOne {
 func (u *ProxyUpsertOne) UpdateStatus() *ProxyUpsertOne {
 	return u.Update(func(s *ProxyUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetUpstreamProxyID sets the "upstream_proxy_id" field.
+func (u *ProxyUpsertOne) SetUpstreamProxyID(v int64) *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.SetUpstreamProxyID(v)
+	})
+}
+
+// UpdateUpstreamProxyID sets the "upstream_proxy_id" field to the value that was provided on create.
+func (u *ProxyUpsertOne) UpdateUpstreamProxyID() *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.UpdateUpstreamProxyID()
+	})
+}
+
+// ClearUpstreamProxyID clears the value of the "upstream_proxy_id" field.
+func (u *ProxyUpsertOne) ClearUpstreamProxyID() *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.ClearUpstreamProxyID()
 	})
 }
 
@@ -1085,6 +1160,27 @@ func (u *ProxyUpsertBulk) SetStatus(v string) *ProxyUpsertBulk {
 func (u *ProxyUpsertBulk) UpdateStatus() *ProxyUpsertBulk {
 	return u.Update(func(s *ProxyUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetUpstreamProxyID sets the "upstream_proxy_id" field.
+func (u *ProxyUpsertBulk) SetUpstreamProxyID(v int64) *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.SetUpstreamProxyID(v)
+	})
+}
+
+// UpdateUpstreamProxyID sets the "upstream_proxy_id" field to the value that was provided on create.
+func (u *ProxyUpsertBulk) UpdateUpstreamProxyID() *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.UpdateUpstreamProxyID()
+	})
+}
+
+// ClearUpstreamProxyID clears the value of the "upstream_proxy_id" field.
+func (u *ProxyUpsertBulk) ClearUpstreamProxyID() *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.ClearUpstreamProxyID()
 	})
 }
 

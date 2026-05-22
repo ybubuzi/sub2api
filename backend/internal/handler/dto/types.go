@@ -286,6 +286,8 @@ type Proxy struct {
 	Username  string    `json:"username"`
 	Password  string    `json:"-"`
 	Status    string    `json:"status"`
+	UpstreamProxyID *int64 `json:"upstream_proxy_id,omitempty"`
+	UpstreamProxyName string `json:"upstream_proxy_name,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
