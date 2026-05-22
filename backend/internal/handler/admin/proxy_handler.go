@@ -137,12 +137,12 @@ func (h *ProxyHandler) Create(c *gin.Context) {
 
 	executeAdminIdempotentJSON(c, "admin.proxies.create", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		proxy, err := h.adminService.CreateProxy(ctx, &service.CreateProxyInput{
-			Name:     strings.TrimSpace(req.Name),
-			Protocol: strings.TrimSpace(req.Protocol),
-			Host:     strings.TrimSpace(req.Host),
-			Port:     req.Port,
-			Username: strings.TrimSpace(req.Username),
-			Password: strings.TrimSpace(req.Password),
+			Name:            strings.TrimSpace(req.Name),
+			Protocol:        strings.TrimSpace(req.Protocol),
+			Host:            strings.TrimSpace(req.Host),
+			Port:            req.Port,
+			Username:        strings.TrimSpace(req.Username),
+			Password:        strings.TrimSpace(req.Password),
 			UpstreamProxyID: req.UpstreamProxyID,
 		})
 		if err != nil {
@@ -168,13 +168,13 @@ func (h *ProxyHandler) Update(c *gin.Context) {
 	}
 
 	proxy, err := h.adminService.UpdateProxy(c.Request.Context(), proxyID, &service.UpdateProxyInput{
-		Name:     strings.TrimSpace(req.Name),
-		Protocol: strings.TrimSpace(req.Protocol),
-		Host:     strings.TrimSpace(req.Host),
-		Port:     req.Port,
-		Username: strings.TrimSpace(req.Username),
-		Password: strings.TrimSpace(req.Password),
-		Status:   strings.TrimSpace(req.Status),
+		Name:            strings.TrimSpace(req.Name),
+		Protocol:        strings.TrimSpace(req.Protocol),
+		Host:            strings.TrimSpace(req.Host),
+		Port:            req.Port,
+		Username:        strings.TrimSpace(req.Username),
+		Password:        strings.TrimSpace(req.Password),
+		Status:          strings.TrimSpace(req.Status),
 		UpstreamProxyID: req.UpstreamProxyID,
 	})
 	if err != nil {

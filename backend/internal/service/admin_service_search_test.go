@@ -118,6 +118,10 @@ func (s *proxyRepoStubForAdminList) ListWithFiltersAndAccountCount(_ context.Con
 	return s.listWithFiltersAndAccountCountProxies, result, nil
 }
 
+func (s *proxyRepoStubForAdminList) ListReferencedByUpstreamProxyID(_ context.Context, upstreamProxyID int64) ([]Proxy, error) {
+	return nil, nil
+}
+
 type redeemRepoStubForAdminList struct {
 	redeemRepoStub
 
