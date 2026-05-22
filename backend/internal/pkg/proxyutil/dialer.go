@@ -121,12 +121,12 @@ func chainDialContext(proxyURLs []*url.URL) func(context.Context, string, string
 			if i+1 < len(proxyURLs) {
 				target = proxyHostPort(proxyURLs[i+1])
 			}
-			var err error
-			conn, err = connectHTTPProxy(ctx, conn, target, current.User)
+			nextConn, err := connectHTTPProxy(ctx, conn, target, current.User)
 			if err != nil {
 				_ = conn.Close()
 				return nil, fmt.Errorf("connect chain hop %d: %w", i+1, err)
 			}
+			conn = nextConn
 		}
 		return conn, nil
 	}
@@ -209,14 +209,4 @@ func connectHTTPProxy(ctx context.Context, conn net.Conn, target string, user *u
 		return &bufConn{Conn: conn, reader: reader}, nil
 	}
 	return conn, nil
-}
-
-type PeekedConn struct {
-	net.Conn
-	reader *bufio.Reader
-}
-
-// Read overrides the default Conn read to prioritize the buffered data
-func (c *PeekedConn) Read(p []byte) (int, error) {
-	return c.reader.Read(p)
 }
