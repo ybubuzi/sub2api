@@ -805,6 +805,9 @@ func (m *mockGeminiProxyRepo) CountAccountsByProxyID(ctx context.Context, proxyI
 func (m *mockGeminiProxyRepo) ListAccountSummariesByProxyID(ctx context.Context, proxyID int64) ([]ProxyAccountSummary, error) {
 	panic("not impl")
 }
+func (m *mockGeminiProxyRepo) ListReferencedByUpstreamProxyID(ctx context.Context, upstreamProxyID int64) ([]Proxy, error) {
+	panic("not impl")
+}
 
 // mockDriveClient implements geminicli.DriveClient for tests.
 type mockDriveClient struct {

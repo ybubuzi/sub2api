@@ -163,20 +163,20 @@ func connectHTTPProxy(ctx context.Context, conn net.Conn, target string, user *u
 	defer func() { _ = conn.SetDeadline(time.Time{}) }()
 
 	var b strings.Builder
-	b.WriteString("CONNECT ")
-	b.WriteString(target)
-	b.WriteString(" HTTP/1.1\r\nHost: ")
-	b.WriteString(target)
-	b.WriteString("\r\nConnection: keep-alive\r\n")
+	if _, err := fmt.Fprintf(&b, "CONNECT %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n", target, target); err != nil {
+		return err
+	}
 	if user != nil {
 		username := user.Username()
 		password, _ := user.Password()
 		token := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
-		b.WriteString("Proxy-Authorization: Basic ")
-		b.WriteString(token)
-		b.WriteString("\r\n")
+		if _, err := fmt.Fprintf(&b, "Proxy-Authorization: Basic %s\r\n", token); err != nil {
+			return err
+		}
 	}
-	b.WriteString("\r\n")
+	if _, err := io.WriteString(&b, "\r\n"); err != nil {
+		return err
+	}
 	if _, err := io.WriteString(conn, b.String()); err != nil {
 		return err
 	}

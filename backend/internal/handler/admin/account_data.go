@@ -33,14 +33,14 @@ type DataPayload struct {
 }
 
 type DataProxy struct {
-	ProxyKey string `json:"proxy_key"`
-	Name     string `json:"name"`
-	Protocol string `json:"protocol"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-	Status   string `json:"status"`
+	ProxyKey         string  `json:"proxy_key"`
+	Name             string  `json:"name"`
+	Protocol         string  `json:"protocol"`
+	Host             string  `json:"host"`
+	Port             int     `json:"port"`
+	Username         string  `json:"username,omitempty"`
+	Password         string  `json:"password,omitempty"`
+	Status           string  `json:"status"`
 	UpstreamProxyKey *string `json:"upstream_proxy_key,omitempty"`
 }
 
