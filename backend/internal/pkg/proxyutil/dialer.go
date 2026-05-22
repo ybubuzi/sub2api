@@ -200,10 +200,13 @@ func connectHTTPProxy(ctx context.Context, conn net.Conn, target string, user *u
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("unexpected status %s", resp.Status)
 	}
+	// Do not close resp.Body on a successful CONNECT response. The response body
+	// represents the upgraded tunnel stream; closing it can close the underlying
+	// connection before the next hop or the final TLS handshake uses it.
 	// 修复核心：如果有残留数据（缓冲区不为空），包装连接以保留数据
 	if reader.Buffered() > 0 {
 		return &bufConn{Conn: conn, reader: reader}, nil
