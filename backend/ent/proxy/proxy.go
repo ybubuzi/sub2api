@@ -35,8 +35,12 @@ const (
 	FieldPassword = "password"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldUpstreamProxyID holds the string denoting the upstream_proxy_id field in the database.
+	FieldUpstreamProxyID = "upstream_proxy_id"
 	// EdgeAccounts holds the string denoting the accounts edge name in mutations.
 	EdgeAccounts = "accounts"
+	// EdgeUpstreamProxy holds the string denoting the upstream_proxy edge name in mutations.
+	EdgeUpstreamProxy = "upstream_proxy"
 	// Table holds the table name of the proxy in the database.
 	Table = "proxies"
 	// AccountsTable is the table that holds the accounts relation/edge.
@@ -46,6 +50,10 @@ const (
 	AccountsInverseTable = "accounts"
 	// AccountsColumn is the table column denoting the accounts relation/edge.
 	AccountsColumn = "proxy_id"
+	// UpstreamProxyTable is the table that holds the upstream_proxy relation/edge.
+	UpstreamProxyTable = "proxies"
+	// UpstreamProxyColumn is the table column denoting the upstream_proxy relation/edge.
+	UpstreamProxyColumn = "upstream_proxy_id"
 )
 
 // Columns holds all SQL columns for proxy fields.
@@ -61,6 +69,7 @@ var Columns = []string{
 	FieldUsername,
 	FieldPassword,
 	FieldStatus,
+	FieldUpstreamProxyID,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -161,6 +170,11 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
 }
 
+// ByUpstreamProxyID orders the results by the upstream_proxy_id field.
+func ByUpstreamProxyID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamProxyID, opts...).ToFunc()
+}
+
 // ByAccountsCount orders the results by accounts count.
 func ByAccountsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -174,10 +188,24 @@ func ByAccounts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newAccountsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByUpstreamProxyField orders the results by upstream_proxy field.
+func ByUpstreamProxyField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newUpstreamProxyStep(), sql.OrderByField(field, opts...))
+	}
+}
 func newAccountsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(AccountsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, true, AccountsTable, AccountsColumn),
+	)
+}
+func newUpstreamProxyStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(Table, FieldID),
+		sqlgraph.Edge(sqlgraph.O2O, false, UpstreamProxyTable, UpstreamProxyColumn),
 	)
 }

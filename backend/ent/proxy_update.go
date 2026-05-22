@@ -172,6 +172,26 @@ func (_u *ProxyUpdate) SetNillableStatus(v *string) *ProxyUpdate {
 	return _u
 }
 
+// SetUpstreamProxyID sets the "upstream_proxy_id" field.
+func (_u *ProxyUpdate) SetUpstreamProxyID(v int64) *ProxyUpdate {
+	_u.mutation.SetUpstreamProxyID(v)
+	return _u
+}
+
+// SetNillableUpstreamProxyID sets the "upstream_proxy_id" field if the given value is not nil.
+func (_u *ProxyUpdate) SetNillableUpstreamProxyID(v *int64) *ProxyUpdate {
+	if v != nil {
+		_u.SetUpstreamProxyID(*v)
+	}
+	return _u
+}
+
+// ClearUpstreamProxyID clears the value of the "upstream_proxy_id" field.
+func (_u *ProxyUpdate) ClearUpstreamProxyID() *ProxyUpdate {
+	_u.mutation.ClearUpstreamProxyID()
+	return _u
+}
+
 // AddAccountIDs adds the "accounts" edge to the Account entity by IDs.
 func (_u *ProxyUpdate) AddAccountIDs(ids ...int64) *ProxyUpdate {
 	_u.mutation.AddAccountIDs(ids...)
@@ -185,6 +205,11 @@ func (_u *ProxyUpdate) AddAccounts(v ...*Account) *ProxyUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.AddAccountIDs(ids...)
+}
+
+// SetUpstreamProxy sets the "upstream_proxy" edge to the Proxy entity.
+func (_u *ProxyUpdate) SetUpstreamProxy(v *Proxy) *ProxyUpdate {
+	return _u.SetUpstreamProxyID(v.ID)
 }
 
 // Mutation returns the ProxyMutation object of the builder.
@@ -211,6 +236,12 @@ func (_u *ProxyUpdate) RemoveAccounts(v ...*Account) *ProxyUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAccountIDs(ids...)
+}
+
+// ClearUpstreamProxy clears the "upstream_proxy" edge to the Proxy entity.
+func (_u *ProxyUpdate) ClearUpstreamProxy() *ProxyUpdate {
+	_u.mutation.ClearUpstreamProxy()
+	return _u
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -386,6 +417,35 @@ func (_u *ProxyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.UpstreamProxyCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   proxy.UpstreamProxyTable,
+			Columns: []string{proxy.UpstreamProxyColumn},
+			Bidi:    true,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(proxy.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.UpstreamProxyIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   proxy.UpstreamProxyTable,
+			Columns: []string{proxy.UpstreamProxyColumn},
+			Bidi:    true,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(proxy.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{proxy.Label}
@@ -549,6 +609,26 @@ func (_u *ProxyUpdateOne) SetNillableStatus(v *string) *ProxyUpdateOne {
 	return _u
 }
 
+// SetUpstreamProxyID sets the "upstream_proxy_id" field.
+func (_u *ProxyUpdateOne) SetUpstreamProxyID(v int64) *ProxyUpdateOne {
+	_u.mutation.SetUpstreamProxyID(v)
+	return _u
+}
+
+// SetNillableUpstreamProxyID sets the "upstream_proxy_id" field if the given value is not nil.
+func (_u *ProxyUpdateOne) SetNillableUpstreamProxyID(v *int64) *ProxyUpdateOne {
+	if v != nil {
+		_u.SetUpstreamProxyID(*v)
+	}
+	return _u
+}
+
+// ClearUpstreamProxyID clears the value of the "upstream_proxy_id" field.
+func (_u *ProxyUpdateOne) ClearUpstreamProxyID() *ProxyUpdateOne {
+	_u.mutation.ClearUpstreamProxyID()
+	return _u
+}
+
 // AddAccountIDs adds the "accounts" edge to the Account entity by IDs.
 func (_u *ProxyUpdateOne) AddAccountIDs(ids ...int64) *ProxyUpdateOne {
 	_u.mutation.AddAccountIDs(ids...)
@@ -562,6 +642,11 @@ func (_u *ProxyUpdateOne) AddAccounts(v ...*Account) *ProxyUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.AddAccountIDs(ids...)
+}
+
+// SetUpstreamProxy sets the "upstream_proxy" edge to the Proxy entity.
+func (_u *ProxyUpdateOne) SetUpstreamProxy(v *Proxy) *ProxyUpdateOne {
+	return _u.SetUpstreamProxyID(v.ID)
 }
 
 // Mutation returns the ProxyMutation object of the builder.
@@ -588,6 +673,12 @@ func (_u *ProxyUpdateOne) RemoveAccounts(v ...*Account) *ProxyUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAccountIDs(ids...)
+}
+
+// ClearUpstreamProxy clears the "upstream_proxy" edge to the Proxy entity.
+func (_u *ProxyUpdateOne) ClearUpstreamProxy() *ProxyUpdateOne {
+	_u.mutation.ClearUpstreamProxy()
+	return _u
 }
 
 // Where appends a list predicates to the ProxyUpdate builder.
@@ -786,6 +877,35 @@ func (_u *ProxyUpdateOne) sqlSave(ctx context.Context) (_node *Proxy, err error)
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.UpstreamProxyCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   proxy.UpstreamProxyTable,
+			Columns: []string{proxy.UpstreamProxyColumn},
+			Bidi:    true,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(proxy.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.UpstreamProxyIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   proxy.UpstreamProxyTable,
+			Columns: []string{proxy.UpstreamProxyColumn},
+			Bidi:    true,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(proxy.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

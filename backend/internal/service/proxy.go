@@ -16,6 +16,8 @@ type Proxy struct {
 	Username  string
 	Password  string
 	Status    string
+	UpstreamProxyID *int64
+	UpstreamProxy   *Proxy
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -25,6 +27,22 @@ func (p *Proxy) IsActive() bool {
 }
 
 func (p *Proxy) URL() string {
+	current := p.directURL()
+	if p.UpstreamProxy == nil {
+		return current
+	}
+	u := &url.URL{
+		Scheme: "chain",
+		Host:   "proxy",
+	}
+	q := u.Query()
+	q.Set("upstream", p.UpstreamProxy.URL())
+	q.Set("proxy", current)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func (p *Proxy) directURL() string {
 	u := &url.URL{
 		Scheme: p.Protocol,
 		Host:   net.JoinHostPort(p.Host, strconv.Itoa(p.Port)),

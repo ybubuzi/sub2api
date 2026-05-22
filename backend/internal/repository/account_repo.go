@@ -216,6 +216,9 @@ func (r *accountRepository) GetByIDs(ctx context.Context, ids []int64) ([]*servi
 		// Prefer the preloaded proxy edge when available.
 		if entAcc.Edges.Proxy != nil {
 			out.Proxy = proxyEntityToService(entAcc.Edges.Proxy)
+			if out.Proxy != nil {
+				_ = r.attachAccountProxyChain(ctx, out.Proxy)
+			}
 		}
 
 		if groups, ok := groupsByAccount[entAcc.ID]; ok {
@@ -242,6 +245,45 @@ func (r *accountRepository) GetByIDs(ctx context.Context, ids []int64) ([]*servi
 	}
 
 	return out, nil
+}
+
+func (r *accountRepository) attachAccountProxyChain(ctx context.Context, p *service.Proxy) error {
+	return r.attachAccountProxyChainSeen(ctx, p, map[int64]struct{}{})
+}
+
+func (r *accountRepository) attachAccountProxyChainSeen(ctx context.Context, p *service.Proxy, seen map[int64]struct{}) error {
+	if p == nil || p.ID == 0 {
+		return nil
+	}
+	if _, ok := seen[p.ID]; ok {
+		return nil
+	}
+	seen[p.ID] = struct{}{}
+
+	var upstreamID sql.NullInt64
+	if err := scanSingleRow(ctx, r.sql, "SELECT upstream_proxy_id FROM proxies WHERE id = $1", []any{p.ID}, &upstreamID); err != nil {
+		return err
+	}
+	if !upstreamID.Valid || upstreamID.Int64 <= 0 || upstreamID.Int64 == p.ID {
+		p.UpstreamProxyID = nil
+		p.UpstreamProxy = nil
+		return nil
+	}
+	p.UpstreamProxyID = &upstreamID.Int64
+	upstreamEnt, err := r.client.Proxy.Get(ctx, upstreamID.Int64)
+	if err != nil {
+		if dbent.IsNotFound(err) {
+			p.UpstreamProxy = nil
+			return nil
+		}
+		return err
+	}
+	upstream := proxyEntityToService(upstreamEnt)
+	if err := r.attachAccountProxyChainSeen(ctx, upstream, seen); err != nil {
+		return err
+	}
+	p.UpstreamProxy = upstream
+	return nil
 }
 
 // ExistsByID 检查指定 ID 的账号是否存在。

@@ -17,6 +17,7 @@ import (
 
 type sqlQuerier interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
 type proxyRepository struct {
@@ -49,6 +50,12 @@ func (r *proxyRepository) Create(ctx context.Context, proxyIn *service.Proxy) er
 	created, err := builder.Save(ctx)
 	if err == nil {
 		applyProxyEntityToService(proxyIn, created)
+		if err := r.setUpstreamProxyID(ctx, proxyIn.ID, proxyIn.UpstreamProxyID); err != nil {
+			return err
+		}
+		if err := r.attachProxyChain(ctx, proxyIn); err != nil {
+			return err
+		}
 	}
 	return err
 }
@@ -61,7 +68,11 @@ func (r *proxyRepository) GetByID(ctx context.Context, id int64) (*service.Proxy
 		}
 		return nil, err
 	}
-	return proxyEntityToService(m), nil
+	out := proxyEntityToService(m)
+	if err := r.attachProxyChain(ctx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *proxyRepository) ListByIDs(ctx context.Context, ids []int64) ([]service.Proxy, error) {
@@ -78,7 +89,11 @@ func (r *proxyRepository) ListByIDs(ctx context.Context, ids []int64) ([]service
 
 	out := make([]service.Proxy, 0, len(proxies))
 	for i := range proxies {
-		out = append(out, *proxyEntityToService(proxies[i]))
+		outProxy := proxyEntityToService(proxies[i])
+		if err := r.attachProxyChain(ctx, outProxy); err != nil {
+			return nil, err
+		}
+		out = append(out, *outProxy)
 	}
 	return out, nil
 }
@@ -104,6 +119,12 @@ func (r *proxyRepository) Update(ctx context.Context, proxyIn *service.Proxy) er
 	updated, err := builder.Save(ctx)
 	if err == nil {
 		applyProxyEntityToService(proxyIn, updated)
+		if err := r.setUpstreamProxyID(ctx, proxyIn.ID, proxyIn.UpstreamProxyID); err != nil {
+			return err
+		}
+		if err := r.attachProxyChain(ctx, proxyIn); err != nil {
+			return err
+		}
 		return nil
 	}
 	if dbent.IsNotFound(err) {
@@ -153,7 +174,11 @@ func (r *proxyRepository) ListWithFilters(ctx context.Context, params pagination
 
 	outProxies := make([]service.Proxy, 0, len(proxies))
 	for i := range proxies {
-		outProxies = append(outProxies, *proxyEntityToService(proxies[i]))
+		outProxy := proxyEntityToService(proxies[i])
+		if err := r.attachProxyChain(ctx, outProxy); err != nil {
+			return nil, nil, err
+		}
+		outProxies = append(outProxies, *outProxy)
 	}
 
 	return outProxies, paginationResultFromTotal(int64(total), params), nil
@@ -235,6 +260,9 @@ func (r *proxyRepository) buildProxyWithAccountCountResult(ctx context.Context, 
 		if proxyOut == nil {
 			continue
 		}
+		if err := r.attachProxyChain(ctx, proxyOut); err != nil {
+			return nil, nil, err
+		}
 		result = append(result, service.ProxyWithAccountCount{
 			Proxy:        *proxyOut,
 			AccountCount: counts[proxyOut.ID],
@@ -277,7 +305,11 @@ func (r *proxyRepository) ListActive(ctx context.Context) ([]service.Proxy, erro
 	}
 	outProxies := make([]service.Proxy, 0, len(proxies))
 	for i := range proxies {
-		outProxies = append(outProxies, *proxyEntityToService(proxies[i]))
+		outProxy := proxyEntityToService(proxies[i])
+		if err := r.attachProxyChain(ctx, outProxy); err != nil {
+			return nil, err
+		}
+		outProxies = append(outProxies, *outProxy)
 	}
 	return outProxies, nil
 }
@@ -403,6 +435,9 @@ func (r *proxyRepository) ListActiveWithAccountCount(ctx context.Context) ([]ser
 		if proxyOut == nil {
 			continue
 		}
+		if err := r.attachProxyChain(ctx, proxyOut); err != nil {
+			return nil, err
+		}
 		result = append(result, service.ProxyWithAccountCount{
 			Proxy:        *proxyOut,
 			AccountCount: counts[proxyOut.ID],
@@ -410,6 +445,84 @@ func (r *proxyRepository) ListActiveWithAccountCount(ctx context.Context) ([]ser
 	}
 
 	return result, nil
+}
+
+func (r *proxyRepository) ListReferencedByUpstreamProxyID(ctx context.Context, upstreamProxyID int64) ([]service.Proxy, error) {
+	rows, err := r.sql.QueryContext(ctx, `
+		SELECT id
+		FROM proxies
+		WHERE upstream_proxy_id = $1 AND deleted_at IS NULL
+		ORDER BY id DESC
+	`, upstreamProxyID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]service.Proxy, 0)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		p, err := r.GetByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *proxyRepository) setUpstreamProxyID(ctx context.Context, proxyID int64, upstreamProxyID *int64) error {
+	if upstreamProxyID == nil {
+		_, err := r.sql.ExecContext(ctx, "UPDATE proxies SET upstream_proxy_id = NULL WHERE id = $1", proxyID)
+		return err
+	}
+	_, err := r.sql.ExecContext(ctx, "UPDATE proxies SET upstream_proxy_id = $1 WHERE id = $2", *upstreamProxyID, proxyID)
+	return err
+}
+
+func (r *proxyRepository) attachProxyChain(ctx context.Context, p *service.Proxy) error {
+	return r.attachProxyChainSeen(ctx, p, map[int64]struct{}{})
+}
+
+func (r *proxyRepository) attachProxyChainSeen(ctx context.Context, p *service.Proxy, seen map[int64]struct{}) error {
+	if p == nil || p.ID == 0 {
+		return nil
+	}
+	if _, ok := seen[p.ID]; ok {
+		return nil
+	}
+	seen[p.ID] = struct{}{}
+
+	var upstreamID sql.NullInt64
+	if err := scanSingleRow(ctx, r.sql, "SELECT upstream_proxy_id FROM proxies WHERE id = $1", []any{p.ID}, &upstreamID); err != nil {
+		return err
+	}
+	if !upstreamID.Valid || upstreamID.Int64 <= 0 || upstreamID.Int64 == p.ID {
+		p.UpstreamProxyID = nil
+		p.UpstreamProxy = nil
+		return nil
+	}
+	p.UpstreamProxyID = &upstreamID.Int64
+	upstreamEnt, err := r.client.Proxy.Get(ctx, upstreamID.Int64)
+	if err != nil {
+		if dbent.IsNotFound(err) {
+			p.UpstreamProxy = nil
+			return nil
+		}
+		return err
+	}
+	upstream := proxyEntityToService(upstreamEnt)
+	if err := r.attachProxyChainSeen(ctx, upstream, seen); err != nil {
+		return err
+	}
+	p.UpstreamProxy = upstream
+	return nil
 }
 
 func proxyEntityToService(m *dbent.Proxy) *service.Proxy {

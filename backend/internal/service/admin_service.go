@@ -385,6 +385,7 @@ type CreateProxyInput struct {
 	Port     int
 	Username string
 	Password string
+	UpstreamProxyID *int64
 }
 
 type UpdateProxyInput struct {
@@ -395,6 +396,7 @@ type UpdateProxyInput struct {
 	Username string
 	Password string
 	Status   string
+	UpstreamProxyID *int64
 }
 
 type GenerateRedeemCodesInput struct {
@@ -2872,6 +2874,10 @@ func (s *adminServiceImpl) CreateProxy(ctx context.Context, input *CreateProxyIn
 		Username: input.Username,
 		Password: input.Password,
 		Status:   StatusActive,
+		UpstreamProxyID: input.UpstreamProxyID,
+	}
+	if err := s.validateProxyUpstream(ctx, 0, proxy.UpstreamProxyID); err != nil {
+		return nil, err
 	}
 	if err := s.proxyRepo.Create(ctx, proxy); err != nil {
 		return nil, err
@@ -2908,6 +2914,10 @@ func (s *adminServiceImpl) UpdateProxy(ctx context.Context, id int64, input *Upd
 	if input.Status != "" {
 		proxy.Status = input.Status
 	}
+	proxy.UpstreamProxyID = input.UpstreamProxyID
+	if err := s.validateProxyUpstream(ctx, id, proxy.UpstreamProxyID); err != nil {
+		return nil, err
+	}
 
 	if err := s.proxyRepo.Update(ctx, proxy); err != nil {
 		return nil, err
@@ -2923,7 +2933,47 @@ func (s *adminServiceImpl) DeleteProxy(ctx context.Context, id int64) error {
 	if count > 0 {
 		return ErrProxyInUse
 	}
+	children, err := s.proxyRepo.ListReferencedByUpstreamProxyID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if len(children) > 0 {
+		return infraerrors.Conflict("PROXY_IN_USE", "proxy is used as upstream by another proxy")
+	}
 	return s.proxyRepo.Delete(ctx, id)
+}
+
+func (s *adminServiceImpl) validateProxyUpstream(ctx context.Context, proxyID int64, upstreamProxyID *int64) error {
+	if upstreamProxyID == nil {
+		return nil
+	}
+	if *upstreamProxyID <= 0 {
+		return infraerrors.BadRequest("INVALID_UPSTREAM_PROXY", "invalid upstream proxy")
+	}
+	if proxyID > 0 && *upstreamProxyID == proxyID {
+		return infraerrors.BadRequest("INVALID_UPSTREAM_PROXY", "proxy cannot use itself as upstream")
+	}
+
+	currentID := *upstreamProxyID
+	seen := map[int64]struct{}{}
+	for currentID > 0 {
+		if _, ok := seen[currentID]; ok {
+			return infraerrors.BadRequest("INVALID_UPSTREAM_PROXY", "upstream proxy chain contains a cycle")
+		}
+		seen[currentID] = struct{}{}
+		if proxyID > 0 && currentID == proxyID {
+			return infraerrors.BadRequest("INVALID_UPSTREAM_PROXY", "upstream proxy chain contains a cycle")
+		}
+		upstream, err := s.proxyRepo.GetByID(ctx, currentID)
+		if err != nil {
+			return err
+		}
+		if upstream.UpstreamProxyID == nil {
+			return nil
+		}
+		currentID = *upstream.UpstreamProxyID
+	}
+	return nil
 }
 
 func (s *adminServiceImpl) BatchDeleteProxies(ctx context.Context, ids []int64) (*ProxyBatchDeleteResult, error) {
@@ -2945,6 +2995,21 @@ func (s *adminServiceImpl) BatchDeleteProxies(ctx context.Context, ids []int64) 
 			result.Skipped = append(result.Skipped, ProxyBatchDeleteSkipped{
 				ID:     id,
 				Reason: ErrProxyInUse.Error(),
+			})
+			continue
+		}
+		children, err := s.proxyRepo.ListReferencedByUpstreamProxyID(ctx, id)
+		if err != nil {
+			result.Skipped = append(result.Skipped, ProxyBatchDeleteSkipped{
+				ID:     id,
+				Reason: err.Error(),
+			})
+			continue
+		}
+		if len(children) > 0 {
+			result.Skipped = append(result.Skipped, ProxyBatchDeleteSkipped{
+				ID:     id,
+				Reason: "proxy is used as upstream by another proxy",
 			})
 			continue
 		}
