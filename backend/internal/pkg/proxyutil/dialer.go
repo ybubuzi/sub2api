@@ -18,7 +18,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -122,7 +121,9 @@ func chainDialContext(proxyURLs []*url.URL) func(context.Context, string, string
 			if i+1 < len(proxyURLs) {
 				target = proxyHostPort(proxyURLs[i+1])
 			}
-			if err := connectHTTPProxy(ctx, conn, target, current.User); err != nil {
+			var err error
+			conn, err = connectHTTPProxy(ctx, conn, target, current.User)
+			if err != nil {
 				_ = conn.Close()
 				return nil, fmt.Errorf("connect chain hop %d: %w", i+1, err)
 			}
@@ -154,7 +155,20 @@ func dialProxy(ctx context.Context, proxyURL *url.URL) (net.Conn, error) {
 	return dialer.DialContext(ctx, "tcp", host)
 }
 
-func connectHTTPProxy(ctx context.Context, conn net.Conn, target string, user *url.Userinfo) error {
+// bufConn 包装 net.Conn 和 bufio.Reader，防止 http.ReadResponse 预读数据丢失
+// 这在 HTTP 代理链（Proxy Chain）中至关重要，因为预读的字节通常是
+// 下一级代理的目标地址或 TLS 握手的开始。
+type bufConn struct {
+	net.Conn
+	reader *bufio.Reader
+}
+
+// Read 优先从缓冲区读取
+func (c *bufConn) Read(p []byte) (n int, err error) {
+	return c.reader.Read(p)
+}
+
+func connectHTTPProxy(ctx context.Context, conn net.Conn, target string, user *url.Userinfo) (net.Conn, error) {
 	deadline, hasDeadline := ctx.Deadline()
 	if !hasDeadline {
 		deadline = time.Now().Add(10 * time.Second)
@@ -164,42 +178,45 @@ func connectHTTPProxy(ctx context.Context, conn net.Conn, target string, user *u
 
 	var b strings.Builder
 	if _, err := fmt.Fprintf(&b, "CONNECT %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n", target, target); err != nil {
-		return err
+		return nil, err
 	}
 	if user != nil {
 		username := user.Username()
 		password, _ := user.Password()
 		token := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
 		if _, err := fmt.Fprintf(&b, "Proxy-Authorization: Basic %s\r\n", token); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if _, err := io.WriteString(&b, "\r\n"); err != nil {
-		return err
+		return nil, err
 	}
 	if _, err := io.WriteString(conn, b.String()); err != nil {
-		return err
+		return nil, err
 	}
 
 	reader := bufio.NewReader(conn)
 	resp, err := http.ReadResponse(reader, &http.Request{Method: http.MethodConnect})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status %s", resp.Status)
+		return nil, fmt.Errorf("unexpected status %s", resp.Status)
 	}
+	// 修复核心：如果有残留数据（缓冲区不为空），包装连接以保留数据
 	if reader.Buffered() > 0 {
-		return &bufferedConnectUnsupportedError{n: reader.Buffered()}
+		return &bufConn{Conn: conn, reader: reader}, nil
 	}
-	return nil
+	return conn, nil
 }
 
-type bufferedConnectUnsupportedError struct {
-	n int
+type PeekedConn struct {
+	net.Conn
+	reader *bufio.Reader
 }
 
-func (e *bufferedConnectUnsupportedError) Error() string {
-	return "unexpected buffered proxy data after CONNECT: " + strconv.Itoa(e.n)
+// Read overrides the default Conn read to prioritize the buffered data
+func (c *PeekedConn) Read(p []byte) (int, error) {
+	return c.reader.Read(p)
 }
