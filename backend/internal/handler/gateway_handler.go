@@ -596,7 +596,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 									h.submitCrossPlatformUsageRecord(c, result, fallbackAccount, apiKey, reqModel, body, service.PlatformOpenAI, channelMapping, reqLog)
 									return
 								}
-								crossPlatformFallbackUsed = true
+								crossPlatformFallbackUsed = true //nolint:ineffassign
 								reqLog.Warn("gateway.cross_platform_fallback_forward_failed", zap.Error(fwdErr))
 							}
 						}
@@ -636,7 +636,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 									h.submitCrossPlatformUsageRecord(c, result, fallbackAccount, apiKey, reqModel, body, service.PlatformOpenAI, channelMapping, reqLog)
 									return
 								}
-								crossPlatformFallbackUsed = true
+								crossPlatformFallbackUsed = true //nolint:ineffassign
 								reqLog.Warn("gateway.cross_platform_fallback_forward_failed", zap.Error(fwdErr))
 							}
 						}
