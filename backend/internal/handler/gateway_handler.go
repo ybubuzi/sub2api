@@ -591,12 +591,12 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 							)
 							fallbackAPIKey := cloneAPIKeyWithGroup(apiKey, fallbackGroup)
 							if billErr := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), fallbackAPIKey.User, fallbackAPIKey, fallbackGroup, nil, service.PlatformOpenAI); billErr == nil {
-								crossPlatformFallbackUsed = true
 								result, fallbackAccount, fwdErr := h.forwardViaOpenAIPlatform(c, fallbackAPIKey, reqModel, body, reqLog)
 								if fwdErr == nil && result != nil {
 									h.submitCrossPlatformUsageRecord(c, result, fallbackAccount, apiKey, reqModel, body, service.PlatformOpenAI, channelMapping, reqLog)
 									return
 								}
+								crossPlatformFallbackUsed = true
 								reqLog.Warn("gateway.cross_platform_fallback_forward_failed", zap.Error(fwdErr))
 							}
 						}
@@ -631,12 +631,12 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 							)
 							fallbackAPIKey := cloneAPIKeyWithGroup(apiKey, fallbackGroup)
 							if billErr := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), fallbackAPIKey.User, fallbackAPIKey, fallbackGroup, nil, service.PlatformOpenAI); billErr == nil {
-								crossPlatformFallbackUsed = true
 								result, fallbackAccount, fwdErr := h.forwardViaOpenAIPlatform(c, fallbackAPIKey, reqModel, body, reqLog)
 								if fwdErr == nil && result != nil {
 									h.submitCrossPlatformUsageRecord(c, result, fallbackAccount, apiKey, reqModel, body, service.PlatformOpenAI, channelMapping, reqLog)
 									return
 								}
+								crossPlatformFallbackUsed = true
 								reqLog.Warn("gateway.cross_platform_fallback_forward_failed", zap.Error(fwdErr))
 							}
 						}
