@@ -84,6 +84,8 @@ const (
 	FieldMessagesDispatchModelConfig = "messages_dispatch_model_config"
 	// FieldModelsListConfig holds the string denoting the models_list_config field in the database.
 	FieldModelsListConfig = "models_list_config"
+	// FieldAllowCrossPlatformFallback holds the string denoting the allow_cross_platform_fallback field in the database.
+	FieldAllowCrossPlatformFallback = "allow_cross_platform_fallback"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// FieldKiroCacheEmulationEnabled holds the string denoting the kiro_cache_emulation_enabled field in the database.
@@ -199,6 +201,7 @@ var Columns = []string{
 	FieldDefaultMappedModel,
 	FieldMessagesDispatchModelConfig,
 	FieldModelsListConfig,
+	FieldAllowCrossPlatformFallback,
 	FieldRpmLimit,
 	FieldKiroCacheEmulationEnabled,
 	FieldKiroCacheEmulationRatio,
@@ -287,6 +290,8 @@ var (
 	DefaultMessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig
 	// DefaultModelsListConfig holds the default value on creation for the "models_list_config" field.
 	DefaultModelsListConfig domain.GroupModelsListConfig
+	// DefaultAllowCrossPlatformFallback holds the default value on creation for the "allow_cross_platform_fallback" field.
+	DefaultAllowCrossPlatformFallback bool
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 	// DefaultKiroCacheEmulationEnabled holds the default value on creation for the "kiro_cache_emulation_enabled" field.
@@ -451,6 +456,11 @@ func ByRequirePrivacySet(opts ...sql.OrderTermOption) OrderOption {
 // ByDefaultMappedModel orders the results by the default_mapped_model field.
 func ByDefaultMappedModel(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDefaultMappedModel, opts...).ToFunc()
+}
+
+// ByAllowCrossPlatformFallback orders the results by the allow_cross_platform_fallback field.
+func ByAllowCrossPlatformFallback(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAllowCrossPlatformFallback, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.

@@ -205,6 +205,11 @@ func DefaultMappedModel(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldDefaultMappedModel, v))
 }
 
+// AllowCrossPlatformFallback applies equality check predicate on the "allow_cross_platform_fallback" field. It's identical to AllowCrossPlatformFallbackEQ.
+func AllowCrossPlatformFallback(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldAllowCrossPlatformFallback, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -1408,6 +1413,16 @@ func DefaultMappedModelEqualFold(v string) predicate.Group {
 // DefaultMappedModelContainsFold applies the ContainsFold predicate on the "default_mapped_model" field.
 func DefaultMappedModelContainsFold(v string) predicate.Group {
 	return predicate.Group(sql.FieldContainsFold(FieldDefaultMappedModel, v))
+}
+
+// AllowCrossPlatformFallbackEQ applies the EQ predicate on the "allow_cross_platform_fallback" field.
+func AllowCrossPlatformFallbackEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldAllowCrossPlatformFallback, v))
+}
+
+// AllowCrossPlatformFallbackNEQ applies the NEQ predicate on the "allow_cross_platform_fallback" field.
+func AllowCrossPlatformFallbackNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldAllowCrossPlatformFallback, v))
 }
 
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.

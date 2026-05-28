@@ -41,6 +41,7 @@ type GatewayHandler struct {
 	gatewayService            *service.GatewayService
 	geminiCompatService       *service.GeminiMessagesCompatService
 	antigravityGatewayService *service.AntigravityGatewayService
+	openAIGatewayService      *service.OpenAIGatewayService
 	userService               *service.UserService
 	billingCacheService       *service.BillingCacheService
 	usageService              *service.UsageService
@@ -61,6 +62,7 @@ func NewGatewayHandler(
 	gatewayService *service.GatewayService,
 	geminiCompatService *service.GeminiMessagesCompatService,
 	antigravityGatewayService *service.AntigravityGatewayService,
+	openAIGatewayService *service.OpenAIGatewayService,
 	userService *service.UserService,
 	concurrencyService *service.ConcurrencyService,
 	billingCacheService *service.BillingCacheService,
@@ -96,6 +98,7 @@ func NewGatewayHandler(
 		gatewayService:            gatewayService,
 		geminiCompatService:       geminiCompatService,
 		antigravityGatewayService: antigravityGatewayService,
+		openAIGatewayService:      openAIGatewayService,
 		userService:               userService,
 		billingCacheService:       billingCacheService,
 		usageService:              usageService,
@@ -549,7 +552,12 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	if apiKey.Group != nil {
 		fallbackGroupID = apiKey.Group.FallbackGroupIDOnInvalidRequest
 	}
+	var crossPlatformFallbackGroupID *int64
+	if apiKey.Group != nil && apiKey.Group.AllowCrossPlatformFallback && apiKey.Group.FallbackGroupID != nil && *apiKey.Group.FallbackGroupID > 0 {
+		crossPlatformFallbackGroupID = apiKey.Group.FallbackGroupID
+	}
 	fallbackUsed := false
+	crossPlatformFallbackUsed := false
 
 	// 单账号分组提前设置 SingleAccountRetry 标记，让 Service 层首次 503 就不设模型限流标记。
 	// 避免单账号分组收到 503 (MODEL_CAPACITY_EXHAUSTED) 时设 29s 限流，导致后续请求连续快速失败。
@@ -573,12 +581,33 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), currentAPIKey.GroupID, sessionKey, reqModel, fs.FailedAccountIDs, parsedReq.MetadataUserID, subject.UserID)
 			if err != nil {
 				if len(fs.FailedAccountIDs) == 0 {
+					if !crossPlatformFallbackUsed && crossPlatformFallbackGroupID != nil && h.openAIGatewayService != nil {
+						fallbackGroup, resolveErr := h.gatewayService.ResolveGroupByID(c.Request.Context(), *crossPlatformFallbackGroupID)
+						if resolveErr == nil && fallbackGroup != nil && fallbackGroup.Platform == service.PlatformOpenAI && fallbackGroup.IsActive() {
+							reqLog.Info("gateway.cross_platform_fallback_to_openai",
+								zap.Int64("original_group_id", *currentAPIKey.GroupID),
+								zap.Int64("fallback_group_id", fallbackGroup.ID),
+								zap.String("fallback_platform", fallbackGroup.Platform),
+							)
+							fallbackAPIKey := cloneAPIKeyWithGroup(apiKey, fallbackGroup)
+							if billErr := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), fallbackAPIKey.User, fallbackAPIKey, fallbackGroup, nil, service.PlatformOpenAI); billErr == nil {
+								crossPlatformFallbackUsed = true
+								result, fallbackAccount, fwdErr := h.forwardViaOpenAIPlatform(c, fallbackAPIKey, reqModel, body, reqLog)
+								if fwdErr == nil && result != nil {
+									h.submitCrossPlatformUsageRecord(c, result, fallbackAccount, apiKey, reqModel, body, service.PlatformOpenAI, channelMapping, reqLog)
+									return
+								}
+								reqLog.Warn("gateway.cross_platform_fallback_forward_failed", zap.Error(fwdErr))
+							}
+						}
+					}
 					markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 					reqLog.Warn("gateway.select_account_no_available",
 						zap.String("model", reqModel),
 						zap.Int64p("group_id", currentAPIKey.GroupID),
 						zap.String("platform", platform),
 						zap.Bool("fallback_used", fallbackUsed),
+						zap.Bool("cross_platform_fallback_used", crossPlatformFallbackUsed),
 						zap.Error(err),
 					)
 					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts: "+err.Error(), streamStarted)
@@ -593,6 +622,25 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				case FailoverCanceled:
 					return
 				default: // FailoverExhausted
+					if !crossPlatformFallbackUsed && crossPlatformFallbackGroupID != nil && h.openAIGatewayService != nil {
+						fallbackGroup, resolveErr := h.gatewayService.ResolveGroupByID(c.Request.Context(), *crossPlatformFallbackGroupID)
+						if resolveErr == nil && fallbackGroup != nil && fallbackGroup.Platform == service.PlatformOpenAI && fallbackGroup.IsActive() {
+							reqLog.Info("gateway.cross_platform_fallback_exhausted_to_openai",
+								zap.Int64("original_group_id", *currentAPIKey.GroupID),
+								zap.Int64("fallback_group_id", fallbackGroup.ID),
+							)
+							fallbackAPIKey := cloneAPIKeyWithGroup(apiKey, fallbackGroup)
+							if billErr := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), fallbackAPIKey.User, fallbackAPIKey, fallbackGroup, nil, service.PlatformOpenAI); billErr == nil {
+								crossPlatformFallbackUsed = true
+								result, fallbackAccount, fwdErr := h.forwardViaOpenAIPlatform(c, fallbackAPIKey, reqModel, body, reqLog)
+								if fwdErr == nil && result != nil {
+									h.submitCrossPlatformUsageRecord(c, result, fallbackAccount, apiKey, reqModel, body, service.PlatformOpenAI, channelMapping, reqLog)
+									return
+								}
+								reqLog.Warn("gateway.cross_platform_fallback_forward_failed", zap.Error(fwdErr))
+							}
+						}
+					}
 					if fs.LastFailoverErr != nil {
 						h.handleFailoverExhausted(c, fs.LastFailoverErr, platform, streamStarted)
 					} else {
@@ -1142,6 +1190,81 @@ func cloneAPIKeyWithGroup(apiKey *service.APIKey, group *service.Group) *service
 	cloned.GroupID = &groupID
 	cloned.Group = group
 	return &cloned
+}
+
+func (h *GatewayHandler) forwardViaOpenAIPlatform(
+	c *gin.Context,
+	fallbackAPIKey *service.APIKey,
+	reqModel string,
+	body []byte,
+	reqLog *zap.Logger,
+) (*service.OpenAIForwardResult, *service.Account, error) {
+	if h.openAIGatewayService == nil {
+		return nil, nil, fmt.Errorf("openai gateway service not available")
+	}
+	sessionHash := h.openAIGatewayService.GenerateSessionHash(c, body)
+	promptCacheKey := h.openAIGatewayService.ExtractSessionID(c, body)
+	selection, _, selectErr := h.openAIGatewayService.SelectAccountWithScheduler(
+		c.Request.Context(),
+		fallbackAPIKey.GroupID,
+		"",
+		sessionHash,
+		reqModel,
+		nil,
+		service.OpenAIUpstreamTransportAny,
+		false,
+	)
+	if selectErr != nil {
+		return nil, nil, fmt.Errorf("cross-platform openai account select failed: %w", selectErr)
+	}
+	if selection == nil || selection.Account == nil {
+		return nil, nil, fmt.Errorf("cross-platform openai no available accounts")
+	}
+	account := selection.Account
+	releaseFunc := selection.ReleaseFunc
+	if releaseFunc != nil {
+		defer releaseFunc()
+	}
+	result, fwdErr := h.openAIGatewayService.ForwardAsAnthropic(
+		c.Request.Context(), c, account, body, promptCacheKey, "",
+	)
+	return result, account, fwdErr
+}
+
+func (h *GatewayHandler) submitCrossPlatformUsageRecord(
+	c *gin.Context,
+	result *service.OpenAIForwardResult,
+	account *service.Account,
+	originalAPIKey *service.APIKey,
+	reqModel string,
+	body []byte,
+	upstreamPlatform string,
+	channelMapping service.ChannelMappingResult,
+	reqLog *zap.Logger,
+) {
+	userAgent := c.GetHeader("User-Agent")
+	clientIP := ip.GetClientIP(c)
+	requestPayloadHash := service.HashUsageRequestPayload(body)
+	inboundEndpoint := GetInboundEndpoint(c)
+	upstreamEndpoint := GetUpstreamEndpoint(c, upstreamPlatform)
+	h.submitUsageRecordTask(func(ctx context.Context) {
+		if err := h.openAIGatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
+			Result:             result,
+			APIKey:             originalAPIKey,
+			User:               originalAPIKey.User,
+			Account:            account,
+			Subscription:       nil,
+			InboundEndpoint:    inboundEndpoint,
+			UpstreamEndpoint:   upstreamEndpoint,
+			UserAgent:          userAgent,
+			IPAddress:          clientIP,
+			RequestPayloadHash: requestPayloadHash,
+			APIKeyService:      h.apiKeyService,
+			ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
+		}); err != nil {
+			reqLog.Error("gateway.cross_platform_record_usage_failed", zap.Error(err))
+		}
+	})
 }
 
 // Usage handles getting account balance and usage statistics for CC Switch integration

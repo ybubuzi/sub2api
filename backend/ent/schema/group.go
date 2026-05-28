@@ -159,6 +159,9 @@ func (Group) Fields() []ent.Field {
 			Default(domain.GroupModelsListConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度"),
+		field.Bool("allow_cross_platform_fallback").
+			Default(false).
+			Comment("是否允许跨平台 fallback：当本分组无可用账号时，自动使用 fallback_group_id 指向的异平台分组"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").

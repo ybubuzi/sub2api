@@ -481,6 +481,20 @@ func (_c *GroupCreate) SetNillableModelsListConfig(v *domain.GroupModelsListConf
 	return _c
 }
 
+// SetAllowCrossPlatformFallback sets the "allow_cross_platform_fallback" field.
+func (_c *GroupCreate) SetAllowCrossPlatformFallback(v bool) *GroupCreate {
+	_c.mutation.SetAllowCrossPlatformFallback(v)
+	return _c
+}
+
+// SetNillableAllowCrossPlatformFallback sets the "allow_cross_platform_fallback" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableAllowCrossPlatformFallback(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetAllowCrossPlatformFallback(*v)
+	}
+	return _c
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_c *GroupCreate) SetRpmLimit(v int) *GroupCreate {
 	_c.mutation.SetRpmLimit(v)
@@ -744,6 +758,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultModelsListConfig
 		_c.mutation.SetModelsListConfig(v)
 	}
+	if _, ok := _c.mutation.AllowCrossPlatformFallback(); !ok {
+		v := group.DefaultAllowCrossPlatformFallback
+		_c.mutation.SetAllowCrossPlatformFallback(v)
+	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := group.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
@@ -854,6 +872,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.ModelsListConfig(); !ok {
 		return &ValidationError{Name: "models_list_config", err: errors.New(`ent: missing required field "Group.models_list_config"`)}
+	}
+	if _, ok := _c.mutation.AllowCrossPlatformFallback(); !ok {
+		return &ValidationError{Name: "allow_cross_platform_fallback", err: errors.New(`ent: missing required field "Group.allow_cross_platform_fallback"`)}
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "Group.rpm_limit"`)}
@@ -1026,6 +1047,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ModelsListConfig(); ok {
 		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
 		_node.ModelsListConfig = value
+	}
+	if value, ok := _c.mutation.AllowCrossPlatformFallback(); ok {
+		_spec.SetField(group.FieldAllowCrossPlatformFallback, field.TypeBool, value)
+		_node.AllowCrossPlatformFallback = value
 	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -1726,6 +1751,18 @@ func (u *GroupUpsert) SetModelsListConfig(v domain.GroupModelsListConfig) *Group
 // UpdateModelsListConfig sets the "models_list_config" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateModelsListConfig() *GroupUpsert {
 	u.SetExcluded(group.FieldModelsListConfig)
+	return u
+}
+
+// SetAllowCrossPlatformFallback sets the "allow_cross_platform_fallback" field.
+func (u *GroupUpsert) SetAllowCrossPlatformFallback(v bool) *GroupUpsert {
+	u.Set(group.FieldAllowCrossPlatformFallback, v)
+	return u
+}
+
+// UpdateAllowCrossPlatformFallback sets the "allow_cross_platform_fallback" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateAllowCrossPlatformFallback() *GroupUpsert {
+	u.SetExcluded(group.FieldAllowCrossPlatformFallback)
 	return u
 }
 
@@ -2442,6 +2479,20 @@ func (u *GroupUpsertOne) SetModelsListConfig(v domain.GroupModelsListConfig) *Gr
 func (u *GroupUpsertOne) UpdateModelsListConfig() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateModelsListConfig()
+	})
+}
+
+// SetAllowCrossPlatformFallback sets the "allow_cross_platform_fallback" field.
+func (u *GroupUpsertOne) SetAllowCrossPlatformFallback(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowCrossPlatformFallback(v)
+	})
+}
+
+// UpdateAllowCrossPlatformFallback sets the "allow_cross_platform_fallback" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateAllowCrossPlatformFallback() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowCrossPlatformFallback()
 	})
 }
 
@@ -3332,6 +3383,20 @@ func (u *GroupUpsertBulk) SetModelsListConfig(v domain.GroupModelsListConfig) *G
 func (u *GroupUpsertBulk) UpdateModelsListConfig() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateModelsListConfig()
+	})
+}
+
+// SetAllowCrossPlatformFallback sets the "allow_cross_platform_fallback" field.
+func (u *GroupUpsertBulk) SetAllowCrossPlatformFallback(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowCrossPlatformFallback(v)
+	})
+}
+
+// UpdateAllowCrossPlatformFallback sets the "allow_cross_platform_fallback" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateAllowCrossPlatformFallback() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowCrossPlatformFallback()
 	})
 }
 

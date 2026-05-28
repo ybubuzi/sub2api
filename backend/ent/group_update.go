@@ -630,6 +630,20 @@ func (_u *GroupUpdate) SetNillableModelsListConfig(v *domain.GroupModelsListConf
 	return _u
 }
 
+// SetAllowCrossPlatformFallback sets the "allow_cross_platform_fallback" field.
+func (_u *GroupUpdate) SetAllowCrossPlatformFallback(v bool) *GroupUpdate {
+	_u.mutation.SetAllowCrossPlatformFallback(v)
+	return _u
+}
+
+// SetNillableAllowCrossPlatformFallback sets the "allow_cross_platform_fallback" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableAllowCrossPlatformFallback(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetAllowCrossPlatformFallback(*v)
+	}
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdate) SetRpmLimit(v int) *GroupUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -1163,6 +1177,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.ModelsListConfig(); ok {
 		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AllowCrossPlatformFallback(); ok {
+		_spec.SetField(group.FieldAllowCrossPlatformFallback, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -2087,6 +2104,20 @@ func (_u *GroupUpdateOne) SetNillableModelsListConfig(v *domain.GroupModelsListC
 	return _u
 }
 
+// SetAllowCrossPlatformFallback sets the "allow_cross_platform_fallback" field.
+func (_u *GroupUpdateOne) SetAllowCrossPlatformFallback(v bool) *GroupUpdateOne {
+	_u.mutation.SetAllowCrossPlatformFallback(v)
+	return _u
+}
+
+// SetNillableAllowCrossPlatformFallback sets the "allow_cross_platform_fallback" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableAllowCrossPlatformFallback(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetAllowCrossPlatformFallback(*v)
+	}
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdateOne) SetRpmLimit(v int) *GroupUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -2650,6 +2681,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.ModelsListConfig(); ok {
 		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AllowCrossPlatformFallback(); ok {
+		_spec.SetField(group.FieldAllowCrossPlatformFallback, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)

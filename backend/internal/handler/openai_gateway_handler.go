@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -28,6 +29,7 @@ import (
 // OpenAIGatewayHandler handles OpenAI API gateway requests
 type OpenAIGatewayHandler struct {
 	gatewayService           *service.OpenAIGatewayService
+	anthropicGatewayService  *service.GatewayService
 	billingCacheService      *service.BillingCacheService
 	apiKeyService            *service.APIKeyService
 	usageRecordWorkerPool    *service.UsageRecordWorkerPool
@@ -49,6 +51,7 @@ func resolveOpenAIMessagesDispatchMappedModel(apiKey *service.APIKey, requestedM
 // NewOpenAIGatewayHandler creates a new OpenAIGatewayHandler
 func NewOpenAIGatewayHandler(
 	gatewayService *service.OpenAIGatewayService,
+	anthropicGatewayService *service.GatewayService,
 	concurrencyService *service.ConcurrencyService,
 	billingCacheService *service.BillingCacheService,
 	apiKeyService *service.APIKeyService,
@@ -67,6 +70,7 @@ func NewOpenAIGatewayHandler(
 	}
 	return &OpenAIGatewayHandler{
 		gatewayService:           gatewayService,
+		anthropicGatewayService:  anthropicGatewayService,
 		billingCacheService:      billingCacheService,
 		apiKeyService:            apiKeyService,
 		usageRecordWorkerPool:    usageRecordWorkerPool,
@@ -262,6 +266,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	failedAccountIDs := make(map[int64]struct{})
 	sameAccountRetryCount := make(map[int64]int)
 	var lastFailoverErr *service.UpstreamFailoverError
+	crossPlatformFallbackUsed := false
 
 	for {
 		// Select account supporting the requested model
@@ -282,6 +287,11 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				zap.Int("excluded_account_count", len(failedAccountIDs)),
 			)
 			if len(failedAccountIDs) == 0 {
+				if !crossPlatformFallbackUsed && h.anthropicGatewayService != nil {
+					if fallbackDone := h.tryCrossPlatformFallbackToAnthropic(c, apiKey, body, reqModel, channelMapping, streamStarted, reqLog); fallbackDone {
+						return
+					}
+				}
 				markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 				if errors.Is(err, service.ErrNoAvailableCompactAccounts) {
 					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "compact_not_supported", "No available OpenAI accounts support /responses/compact", streamStarted)
@@ -289,6 +299,11 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				}
 				h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "Service temporarily unavailable", streamStarted)
 				return
+			}
+			if !crossPlatformFallbackUsed && h.anthropicGatewayService != nil {
+				if fallbackDone := h.tryCrossPlatformFallbackToAnthropic(c, apiKey, body, reqModel, channelMapping, streamStarted, reqLog); fallbackDone {
+					return
+				}
 			}
 			if lastFailoverErr != nil {
 				h.handleFailoverExhausted(c, lastFailoverErr, streamStarted)
@@ -298,6 +313,11 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			return
 		}
 		if selection == nil || selection.Account == nil {
+			if !crossPlatformFallbackUsed && h.anthropicGatewayService != nil {
+				if fallbackDone := h.tryCrossPlatformFallbackToAnthropic(c, apiKey, body, reqModel, channelMapping, streamStarted, reqLog); fallbackDone {
+					return
+				}
+			}
 			markOpsRoutingCapacityLimited(c)
 			h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts", streamStarted)
 			return
@@ -668,6 +688,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	sameAccountRetryCount := make(map[int64]int)
 	var lastFailoverErr *service.UpstreamFailoverError
 	effectiveMappedModel := preferredMappedModel
+	crossPlatformFallbackUsed := false
 
 	for {
 		currentRoutingModel := routingModel
@@ -691,12 +712,22 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 				zap.Int("excluded_account_count", len(failedAccountIDs)),
 			)
 			if len(failedAccountIDs) == 0 {
+				if !crossPlatformFallbackUsed && h.anthropicGatewayService != nil {
+					if fallbackDone := h.tryCrossPlatformFallbackToAnthropic(c, apiKey, body, reqModel, channelMappingMsg, streamStarted, reqLog); fallbackDone {
+						return
+					}
+				}
 				if err != nil {
 					markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 					h.anthropicStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "Service temporarily unavailable", streamStarted)
 					return
 				}
 			} else {
+				if !crossPlatformFallbackUsed && h.anthropicGatewayService != nil {
+					if fallbackDone := h.tryCrossPlatformFallbackToAnthropic(c, apiKey, body, reqModel, channelMappingMsg, streamStarted, reqLog); fallbackDone {
+						return
+					}
+				}
 				if lastFailoverErr != nil {
 					h.handleAnthropicFailoverExhausted(c, lastFailoverErr, streamStarted)
 				} else {
@@ -706,6 +737,11 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			}
 		}
 		if selection == nil || selection.Account == nil {
+			if !crossPlatformFallbackUsed && h.anthropicGatewayService != nil {
+				if fallbackDone := h.tryCrossPlatformFallbackToAnthropic(c, apiKey, body, reqModel, channelMappingMsg, streamStarted, reqLog); fallbackDone {
+					return
+				}
+			}
 			markOpsRoutingCapacityLimited(c)
 			h.anthropicStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts", streamStarted)
 			return
@@ -866,6 +902,105 @@ func resolveOpenAIMessagesMetadataSession(sessionHash, promptCacheKey, reqModel 
 		sessionHash = service.DeriveSessionHashFromSeed(seed)
 	}
 	return sessionHash, promptCacheKey
+}
+
+func (h *OpenAIGatewayHandler) tryCrossPlatformFallbackToAnthropic(
+	c *gin.Context,
+	apiKey *service.APIKey,
+	body []byte,
+	reqModel string,
+	channelMapping service.ChannelMappingResult,
+	streamStarted bool,
+	reqLog *zap.Logger,
+) bool {
+	if apiKey.Group == nil || !apiKey.Group.AllowCrossPlatformFallback || apiKey.Group.FallbackGroupID == nil || *apiKey.Group.FallbackGroupID <= 0 {
+		return false
+	}
+	if h.anthropicGatewayService == nil {
+		return false
+	}
+	fallbackGroup, resolveErr := h.anthropicGatewayService.ResolveGroupByID(c.Request.Context(), *apiKey.Group.FallbackGroupID)
+	if resolveErr != nil || fallbackGroup == nil {
+		return false
+	}
+	if fallbackGroup.Platform != service.PlatformAnthropic && fallbackGroup.Platform != service.PlatformAntigravity {
+		return false
+	}
+	if !fallbackGroup.IsActive() {
+		return false
+	}
+	reqLog.Info("openai.cross_platform_fallback_to_anthropic",
+		zap.Int64("original_group_id", *apiKey.GroupID),
+		zap.Int64("fallback_group_id", fallbackGroup.ID),
+		zap.String("fallback_platform", fallbackGroup.Platform),
+	)
+	fallbackAPIKey := cloneAPIKeyWithGroupOpenAI(apiKey, fallbackGroup)
+	if billErr := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), fallbackAPIKey.User, fallbackAPIKey, fallbackGroup, nil, fallbackGroup.Platform); billErr != nil {
+		return false
+	}
+	sessionHash := h.anthropicGatewayService.GenerateSessionHash(&service.ParsedRequest{Body: body})
+	selection, selectErr := h.anthropicGatewayService.SelectAccountWithLoadAwareness(
+		c.Request.Context(), fallbackAPIKey.GroupID, sessionHash, reqModel, nil, "", int64(0),
+	)
+	if selectErr != nil || selection == nil || selection.Account == nil {
+		return false
+	}
+	account := selection.Account
+	releaseFunc := selection.ReleaseFunc
+	if releaseFunc != nil {
+		defer releaseFunc()
+	}
+	setOpsSelectedAccount(c, account.ID, account.Platform)
+	forwardBody := body
+	if channelMapping.Mapped {
+		forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMapping.MappedModel)
+	}
+	parsedReq, parseErr := service.ParseGatewayRequest(forwardBody, domain.PlatformAnthropic)
+	if parseErr != nil {
+		return false
+	}
+	parsedReq.GroupID = fallbackAPIKey.GroupID
+	parsedReq.Group = fallbackGroup
+	result, fwdErr := h.anthropicGatewayService.Forward(c.Request.Context(), c, account, parsedReq)
+	if fwdErr != nil {
+		return false
+	}
+	userAgent := c.GetHeader("User-Agent")
+	clientIP := ip.GetClientIP(c)
+	requestPayloadHash := service.HashUsageRequestPayload(body)
+	inboundEndpoint := GetInboundEndpoint(c)
+	upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+	h.submitUsageRecordTask(func(ctx context.Context) {
+		if err := h.anthropicGatewayService.RecordUsage(ctx, &service.RecordUsageInput{
+			Result:             result,
+			ParsedRequest:      parsedReq,
+			QuotaPlatform:      fallbackGroup.Platform,
+			APIKey:             apiKey,
+			User:               apiKey.User,
+			Account:            account,
+			InboundEndpoint:    inboundEndpoint,
+			UpstreamEndpoint:   upstreamEndpoint,
+			UserAgent:          userAgent,
+			IPAddress:          clientIP,
+			RequestPayloadHash: requestPayloadHash,
+			APIKeyService:      h.apiKeyService,
+			ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
+		}); err != nil {
+			reqLog.Error("openai.cross_platform_record_usage_failed", zap.Error(err))
+		}
+	})
+	return true
+}
+
+func cloneAPIKeyWithGroupOpenAI(apiKey *service.APIKey, group *service.Group) *service.APIKey {
+	if apiKey == nil || group == nil {
+		return apiKey
+	}
+	cloned := *apiKey
+	groupID := group.ID
+	cloned.GroupID = &groupID
+	cloned.Group = group
+	return &cloned
 }
 
 // anthropicErrorResponse writes an error in Anthropic Messages API format.
