@@ -10,3 +10,9 @@
   - `golangci-lint run --timeout=30m`
   - `git diff --check`
 - Next step is pushing the CI fix commit and waiting for GitHub workflows.
+- Pushed `b9028a75`; Docker Build & Push succeeded, CI failed only in integration test `TestGroupRepoSuite/TestGetByIDLite_DoesNotUseAccountCount`.
+- Adjusted the integration test to allow mirror field hydration SQL while still rejecting account count SQL.
+- Validation passed:
+  - `go test -tags=integration ./internal/repository -run 'TestGroupRepoSuite/TestGetByIDLite_DoesNotUseAccountCount' -count=1 -timeout=60s`
+  - `go test -tags=unit ./internal/repository -run 'TestGroupEntityToService_PreservesMessagesDispatchModelConfig' -count=1 -timeout=60s`
+  - `git diff --check`
