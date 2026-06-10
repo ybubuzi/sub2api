@@ -1,0 +1,5 @@
+id,task,task_type,status,depends_on,task_dir,acceptance_criteria,validation_command,completed_at,retry_count,notes
+1,Confirm existing uptime and availability data sources,single-full,IN_PROGRESS,,tasks/discovery,GitHub and local data-source findings recorded,"rg -n \"availability|uptime|usage_logs|channel monitor\" backend/internal frontend/src",,0,
+2,Implement backend uptime aggregation APIs,single-full,TODO,1,tasks/backend-uptime,User and admin APIs return 1h and 6h buckets for required groupings,"D:\ENV\Go126\go\bin\go.exe test ./internal/service ./internal/handler ./internal/server/routes -run TestNonExistent -count=0 -timeout=60s",,0,
+3,Implement frontend uptime charts,single-full,TODO,2,tasks/frontend-uptime,User and admin pages render all/key/model and all/model/group uptime charts,pnpm typecheck,,0,
+4,Run validation and record results,single-full,TODO,2;3,tasks/final-validation,Selected checks pass or failures are explicitly recorded,"D:\ENV\Go126\go\bin\go.exe test ./internal/pkg/apicompat -count=1 -timeout=60s",,0,

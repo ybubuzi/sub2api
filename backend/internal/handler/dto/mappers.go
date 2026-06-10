@@ -193,6 +193,10 @@ func groupFromServiceBase(g *service.Group) Group {
 		RPMLimit:                        g.RPMLimit,
 		KiroCacheEmulationEnabled:       g.EffectiveKiroCacheEmulationEnabled(),
 		KiroCacheEmulationRatio:         g.EffectiveKiroCacheEmulationRatio(),
+		MirrorSourceGroupID:             g.MirrorSourceGroupID,
+		MirrorSourcePlatform:            g.MirrorSourcePlatform,
+		MirrorModelMapping:              g.MirrorModelMapping,
+		IsMirror:                        g.IsMirror(),
 		CreatedAt:                       g.CreatedAt,
 		UpdatedAt:                       g.UpdatedAt,
 	}

@@ -212,6 +212,7 @@ func (s *OpsService) prepareErrorLogInput(ctx context.Context, entry *OpsInsertE
 		sanitized, _ := sanitizeErrorBodyForStorage(entry.ErrorBody, opsMaxStoredErrorBodyBytes)
 		entry.ErrorBody = sanitized
 	}
+	prepareOpsObservedPayloads(entry)
 
 	// Sanitize upstream error context if provided by gateway services.
 	if entry.UpstreamStatusCode != nil && *entry.UpstreamStatusCode <= 0 {

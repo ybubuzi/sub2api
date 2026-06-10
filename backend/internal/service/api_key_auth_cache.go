@@ -96,6 +96,10 @@ type APIKeyAuthGroupSnapshot struct {
 	// Kiro 模拟缓存配置（仅 Kiro 分组生效）
 	KiroCacheEmulationEnabled bool    `json:"kiro_cache_emulation_enabled"`
 	KiroCacheEmulationRatio   float64 `json:"kiro_cache_emulation_ratio"`
+
+	MirrorSourceGroupID  *int64            `json:"mirror_source_group_id,omitempty"`
+	MirrorSourcePlatform string            `json:"mirror_source_platform,omitempty"`
+	MirrorModelMapping   map[string]string `json:"mirror_model_mapping,omitempty"`
 }
 
 // APIKeyAuthCacheEntry 缓存条目，支持负缓存

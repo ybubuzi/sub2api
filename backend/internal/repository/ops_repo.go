@@ -45,6 +45,14 @@ INSERT INTO ops_error_logs (
   error_body,
   error_source,
   error_owner,
+  observed_request_headers,
+  observed_request_body,
+  observed_request_body_truncated,
+  observed_request_body_bytes,
+  observed_response_headers,
+  observed_response_body,
+  observed_response_body_truncated,
+  observed_response_body_bytes,
   upstream_status_code,
   upstream_error_message,
   upstream_error_detail,
@@ -56,7 +64,7 @@ INSERT INTO ops_error_logs (
   time_to_first_token_ms,
   created_at
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45
 )`
 
 func NewOpsRepository(db *sql.DB) service.OpsRepository {
@@ -155,6 +163,14 @@ func opsInsertErrorLogArgs(input *service.OpsInsertErrorLogInput) []any {
 		opsNullString(input.ErrorBody),
 		opsNullString(input.ErrorSource),
 		opsNullString(input.ErrorOwner),
+		opsNullString(input.ObservedRequestHeadersJSON),
+		opsNullString(input.ObservedRequestBody),
+		input.ObservedRequestBodyTruncated,
+		opsNullInt(input.ObservedRequestBodyBytes),
+		opsNullString(input.ObservedResponseHeadersJSON),
+		opsNullString(input.ObservedResponseBody),
+		input.ObservedResponseBodyTruncated,
+		opsNullInt(input.ObservedResponseBodyBytes),
 		opsNullInt(input.UpstreamStatusCode),
 		opsNullString(input.UpstreamErrorMessage),
 		opsNullString(input.UpstreamErrorDetail),
@@ -381,6 +397,14 @@ SELECT
   COALESCE(e.upstream_error_message, ''),
   COALESCE(e.upstream_error_detail, ''),
   COALESCE(e.upstream_errors::text, ''),
+  COALESCE(e.observed_request_headers::text, ''),
+  COALESCE(e.observed_request_body, ''),
+  e.observed_request_body_truncated,
+  e.observed_request_body_bytes,
+  COALESCE(e.observed_response_headers::text, ''),
+  COALESCE(e.observed_response_body, ''),
+  e.observed_response_body_truncated,
+  e.observed_response_body_bytes,
   e.is_business_limited,
   e.user_id,
   COALESCE(u.email, ''),
@@ -426,6 +450,8 @@ LIMIT 1`
 	var responseLatency sql.NullInt64
 	var ttft sql.NullInt64
 	var requestType sql.NullInt64
+	var requestBodyBytes sql.NullInt64
+	var responseBodyBytes sql.NullInt64
 
 	err := r.db.QueryRowContext(ctx, q, id).Scan(
 		&out.ID,
@@ -449,6 +475,14 @@ LIMIT 1`
 		&out.UpstreamErrorMessage,
 		&out.UpstreamErrorDetail,
 		&out.UpstreamErrors,
+		&out.RequestHeaders,
+		&out.RequestBody,
+		&out.RequestBodyTruncated,
+		&requestBodyBytes,
+		&out.ResponseHeaders,
+		&out.ResponseBody,
+		&out.ResponseBodyTruncated,
+		&responseBodyBytes,
 		&out.IsBusinessLimited,
 		&userID,
 		&out.UserEmail,
@@ -532,6 +566,14 @@ LIMIT 1`
 	if requestType.Valid {
 		v := int16(requestType.Int64)
 		out.RequestType = &v
+	}
+	if requestBodyBytes.Valid {
+		v := int(requestBodyBytes.Int64)
+		out.RequestBodyBytes = &v
+	}
+	if responseBodyBytes.Valid {
+		v := int(responseBodyBytes.Int64)
+		out.ResponseBodyBytes = &v
 	}
 
 	// Normalize upstream_errors to empty string when stored as JSON null.

@@ -69,6 +69,14 @@
               {{ t("admin.groups.sortOrder") }}
             </button>
             <button
+              @click="openRelationshipGraph"
+              class="btn btn-secondary"
+              :title="t('admin.groups.relationship.title')"
+            >
+              <Icon name="chart" size="md" class="mr-2" />
+              {{ t("admin.groups.relationship.button") }}
+            </button>
+            <button
               @click="openCreateModal"
               class="btn btn-primary"
               data-tour="groups-create-btn"
@@ -90,10 +98,24 @@
           default-sort-order="asc"
           @sort="handleSort"
         >
-          <template #cell-name="{ value }">
-            <span class="font-medium text-gray-900 dark:text-white">{{
-              value
-            }}</span>
+          <template #cell-name="{ value, row }">
+            <div>
+              <span class="font-medium text-gray-900 dark:text-white">{{
+                value
+              }}</span>
+              <div
+                v-if="isMirrorGroup(row)"
+                class="mt-1 inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900/20 dark:text-sky-300"
+              >
+                <Icon name="link" size="xs" />
+                {{
+                  t("admin.groups.mirror.rowBadge", {
+                    platform: row.mirror_source_platform || "-",
+                    id: row.mirror_source_group_id || "-",
+                  })
+                }}
+              </div>
+            </div>
           </template>
 
           <template #cell-platform="{ value }">
@@ -295,6 +317,14 @@
               >
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t("common.edit") }}</span>
+              </button>
+              <button
+                v-if="canMirrorGroup(row)"
+                @click="handleMirror(row)"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-sky-600 dark:hover:bg-dark-700 dark:hover:text-sky-400"
+              >
+                <Icon name="link" size="sm" />
+                <span class="text-xs">{{ t("admin.groups.mirror.action") }}</span>
               </button>
               <button
                 @click="handleRateMultipliers(row)"
@@ -3095,6 +3125,20 @@
       @close="showRPMOverridesModal = false"
       @success="loadGroups"
     />
+
+    <GroupMirrorModal
+      :show="showMirrorModal"
+      :group="mirrorGroup"
+      :groups="groups"
+      @close="showMirrorModal = false"
+      @success="handleMirrorSuccess"
+    />
+
+    <GroupRelationshipGraphModal
+      :show="showRelationshipGraphModal"
+      @close="showRelationshipGraphModal = false"
+      @success="loadGroups"
+    />
   </AppLayout>
 </template>
 
@@ -3118,6 +3162,8 @@ import PlatformIcon from "@/components/common/PlatformIcon.vue";
 import Icon from "@/components/icons/Icon.vue";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
+import GroupMirrorModal from "@/components/admin/group/GroupMirrorModal.vue";
+import GroupRelationshipGraphModal from "@/components/admin/group/GroupRelationshipGraphModal.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
@@ -3372,6 +3418,9 @@ const showRateMultipliersModal = ref(false);
 const rateMultipliersGroup = ref<AdminGroup | null>(null);
 const showRPMOverridesModal = ref(false);
 const rpmOverridesGroup = ref<AdminGroup | null>(null);
+const showMirrorModal = ref(false);
+const mirrorGroup = ref<AdminGroup | null>(null);
+const showRelationshipGraphModal = ref(false);
 const sortableGroups = ref<AdminGroup[]>([]);
 const createMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const editMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
@@ -3971,6 +4020,10 @@ const openCreateModal = () => {
   loadModelsListCandidates("create", 0, createForm.platform);
 };
 
+const openRelationshipGraph = () => {
+  showRelationshipGraphModal.value = true;
+};
+
 const closeCreateModal = () => {
   showCreateModal.value = false;
   createModelRoutingRules.value.forEach((rule) => {
@@ -4107,6 +4160,10 @@ const handleCreateGroup = async () => {
 };
 
 const handleEdit = async (group: AdminGroup) => {
+  if (isMirrorGroup(group)) {
+    handleMirror(group);
+    return;
+  }
   editingGroup.value = group;
   editForm.name = group.name;
   editForm.description = group.description || "";
@@ -4278,6 +4335,25 @@ const handleRateMultipliers = (group: AdminGroup) => {
 const handleRPMOverrides = (group: AdminGroup) => {
   rpmOverridesGroup.value = group;
   showRPMOverridesModal.value = true;
+};
+
+const isMirrorGroup = (group: AdminGroup) => {
+  return Boolean(group.is_mirror || group.mirror_source_group_id);
+};
+
+const canMirrorGroup = (group: AdminGroup) => {
+  return group.platform === "openai" || group.platform === "anthropic";
+};
+
+const handleMirror = (group: AdminGroup) => {
+  mirrorGroup.value = group;
+  showMirrorModal.value = true;
+};
+
+const handleMirrorSuccess = () => {
+  showMirrorModal.value = false;
+  mirrorGroup.value = null;
+  loadGroups();
 };
 
 const handleDelete = (group: AdminGroup) => {

@@ -165,8 +165,15 @@ type UpdateGroupRequest struct {
 	// Kiro 模拟缓存配置（仅 kiro 分组生效）
 	KiroCacheEmulationEnabled *bool    `json:"kiro_cache_emulation_enabled"`
 	KiroCacheEmulationRatio   *float64 `json:"kiro_cache_emulation_ratio"`
+	MirrorModelMapping        *map[string]string `json:"mirror_model_mapping"`
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
+}
+
+type SetGroupMirrorRequest struct {
+	TargetPlatform     string            `json:"target_platform" binding:"required,oneof=anthropic openai"`
+	Enabled            bool              `json:"enabled"`
+	MirrorModelMapping map[string]string `json:"mirror_model_mapping"`
 }
 
 // List handles listing all groups with pagination
@@ -248,6 +255,43 @@ func (h *GroupHandler) GetByID(c *gin.Context) {
 	response.Success(c, dto.GroupFromServiceAdmin(group))
 }
 
+// GetRelationshipGraph returns a redacted group/key/account graph for admin visualization.
+// GET /api/v1/admin/groups/relationship-graph
+func (h *GroupHandler) GetRelationshipGraph(c *gin.Context) {
+	groupID := int64(0)
+	if raw := strings.TrimSpace(c.Query("group_id")); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || parsed < 0 {
+			response.BadRequest(c, "Invalid group_id")
+			return
+		}
+		groupID = parsed
+	}
+
+	maxAPIKeysPerGroup := 200
+	if raw := strings.TrimSpace(c.Query("max_api_keys_per_group")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 {
+			response.BadRequest(c, "Invalid max_api_keys_per_group")
+			return
+		}
+		maxAPIKeysPerGroup = parsed
+	}
+
+	graph, err := h.adminService.GetRelationshipGraph(c.Request.Context(), service.RelationshipGraphInput{
+		Platform:           strings.TrimSpace(c.Query("platform")),
+		GroupID:            groupID,
+		IncludeAPIKeys:     c.DefaultQuery("include_api_keys", "true") != "false",
+		IncludeAccounts:    c.DefaultQuery("include_accounts", "true") != "false",
+		MaxAPIKeysPerGroup: maxAPIKeysPerGroup,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, graph)
+}
+
 // GetModelsListCandidates handles getting candidate model IDs for custom /v1/models list.
 // GET /api/v1/admin/groups/:id/models-list-candidates
 func (h *GroupHandler) GetModelsListCandidates(c *gin.Context) {
@@ -318,6 +362,31 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		return
 	}
 
+	response.Success(c, dto.GroupFromServiceAdmin(group))
+}
+
+// SetMirror enables or disables an OpenAI/Claude mirror group.
+// PUT /api/v1/admin/groups/:id/mirror
+func (h *GroupHandler) SetMirror(c *gin.Context) {
+	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || groupID <= 0 {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	var req SetGroupMirrorRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	group, err := h.adminService.SetGroupMirror(c.Request.Context(), groupID, service.SetGroupMirrorInput{
+		TargetPlatform:     req.TargetPlatform,
+		Enabled:            req.Enabled,
+		MirrorModelMapping: req.MirrorModelMapping,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	response.Success(c, dto.GroupFromServiceAdmin(group))
 }
 

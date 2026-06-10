@@ -527,6 +527,10 @@ export interface Group {
   require_privacy_set: boolean
   kiro_cache_emulation_enabled: boolean
   kiro_cache_emulation_ratio: number
+  mirror_source_group_id?: number | null
+  mirror_source_platform?: GroupPlatform | ''
+  mirror_model_mapping?: Record<string, string>
+  is_mirror?: boolean
   created_at: string
   updated_at: string
 }
@@ -688,6 +692,7 @@ export interface UpdateGroupRequest {
   require_privacy_set?: boolean
   kiro_cache_emulation_enabled?: boolean
   kiro_cache_emulation_ratio?: number
+  mirror_model_mapping?: Record<string, string>
   copy_accounts_from_group_ids?: number[]
 }
 
@@ -1173,11 +1178,24 @@ export interface AdminDataImportError {
   message: string
 }
 
+export type DuplicateAccountAction = 'overwrite' | 'copy' | 'ignore'
+export type DataImportPlatformGroupIDs = Partial<Record<AccountPlatform, number[]>>
+
+export interface AdminDataImportRequest {
+  data: AdminDataPayload
+  skip_default_group_bind?: boolean
+  duplicate_account_action?: DuplicateAccountAction
+  platform_group_ids?: DataImportPlatformGroupIDs
+  proxy_id?: number
+}
+
 export interface AdminDataImportResult {
   proxy_created: number
   proxy_reused: number
   proxy_failed: number
   account_created: number
+  account_updated: number
+  account_ignored: number
   account_failed: number
   errors?: AdminDataImportError[]
 }

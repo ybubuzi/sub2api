@@ -74,6 +74,11 @@ type Group struct {
 	KiroCacheEmulationEnabled bool
 	KiroCacheEmulationRatio   float64
 
+	// OpenAI/Claude 镜像分组元数据。
+	MirrorSourceGroupID  *int64
+	MirrorSourcePlatform string
+	MirrorModelMapping   map[string]string
+
 	CreatedAt time.Time
 	UpdatedAt time.Time
 

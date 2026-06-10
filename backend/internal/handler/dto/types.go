@@ -125,6 +125,11 @@ type Group struct {
 	KiroCacheEmulationEnabled bool    `json:"kiro_cache_emulation_enabled"`
 	KiroCacheEmulationRatio   float64 `json:"kiro_cache_emulation_ratio"`
 
+	MirrorSourceGroupID  *int64            `json:"mirror_source_group_id"`
+	MirrorSourcePlatform string            `json:"mirror_source_platform"`
+	MirrorModelMapping   map[string]string `json:"mirror_model_mapping,omitempty"`
+	IsMirror             bool              `json:"is_mirror"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

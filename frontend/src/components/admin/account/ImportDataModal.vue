@@ -40,6 +40,18 @@
         />
       </div>
 
+      <ImportOptions
+        v-model:groups="groups"
+        v-model:proxies="proxies"
+        :show="show"
+        :duplicate-action="duplicateAction"
+        :platform-group-ids="platformGroupIds"
+        :proxy-id="proxyId"
+        @update:duplicate-action="duplicateAction = $event"
+        @update:platform-group-ids="platformGroupIds = $event"
+        @update:proxy-id="proxyId = $event"
+      />
+
       <div
         v-if="result"
         class="space-y-2 rounded-xl border border-gray-200 p-4 dark:border-dark-700"
@@ -88,9 +100,17 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import ImportOptions from './ImportOptions.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { AdminDataImportResult } from '@/types'
+import type {
+  AdminDataImportRequest,
+  AdminDataImportResult,
+  AdminGroup,
+  DataImportPlatformGroupIDs,
+  DuplicateAccountAction,
+  Proxy
+} from '@/types'
 
 interface Props {
   show: boolean
@@ -110,6 +130,11 @@ const appStore = useAppStore()
 const importing = ref(false)
 const file = ref<File | null>(null)
 const result = ref<AdminDataImportResult | null>(null)
+const duplicateAction = ref<DuplicateAccountAction>('overwrite')
+const platformGroupIds = ref<DataImportPlatformGroupIDs>({})
+const proxyId = ref<number | null>(null)
+const groups = ref<AdminGroup[]>([])
+const proxies = ref<Proxy[]>([])
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const fileName = computed(() => file.value?.name || '')
@@ -122,6 +147,9 @@ watch(
     if (open) {
       file.value = null
       result.value = null
+      duplicateAction.value = 'overwrite'
+      platformGroupIds.value = {}
+      proxyId.value = null
       if (fileInput.value) {
         fileInput.value.value = ''
       }
@@ -171,16 +199,27 @@ const handleImport = async () => {
   try {
     const text = await readFileAsText(file.value)
     const dataPayload = JSON.parse(text)
-
-    const res = await adminAPI.accounts.importData({
+    const request: AdminDataImportRequest = {
       data: dataPayload,
-      skip_default_group_bind: true
-    })
+      skip_default_group_bind: true,
+      duplicate_account_action: duplicateAction.value
+    }
+    const selectedGroups = activePlatformGroupIds()
+    if (selectedGroups) {
+      request.platform_group_ids = selectedGroups
+    }
+    if (proxyId.value !== null) {
+      request.proxy_id = proxyId.value
+    }
+
+    const res = await adminAPI.accounts.importData(request)
 
     result.value = res
 
     const msgParams: Record<string, unknown> = {
       account_created: res.account_created,
+      account_updated: res.account_updated,
+      account_ignored: res.account_ignored,
       account_failed: res.account_failed,
       proxy_created: res.proxy_created,
       proxy_reused: res.proxy_reused,
@@ -201,5 +240,11 @@ const handleImport = async () => {
   } finally {
     importing.value = false
   }
+}
+
+const activePlatformGroupIds = (): DataImportPlatformGroupIDs | undefined => {
+  const entries = Object.entries(platformGroupIds.value).filter(([, ids]) => ids && ids.length > 0)
+  if (entries.length === 0) return undefined
+  return Object.fromEntries(entries) as DataImportPlatformGroupIDs
 }
 </script>

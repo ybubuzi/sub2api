@@ -22,6 +22,10 @@ const (
 	legacyDataType = "sub2api-bundle"
 	dataVersion    = 1
 	dataPageCap    = 1000
+
+	duplicateAccountOverwrite = "overwrite"
+	duplicateAccountCopy      = "copy"
+	duplicateAccountIgnore    = "ignore"
 )
 
 type DataPayload struct {
@@ -63,8 +67,11 @@ type DataAccount struct {
 }
 
 type DataImportRequest struct {
-	Data                 DataPayload `json:"data"`
-	SkipDefaultGroupBind *bool       `json:"skip_default_group_bind"`
+	Data                   DataPayload        `json:"data"`
+	SkipDefaultGroupBind   *bool              `json:"skip_default_group_bind"`
+	DuplicateAccountAction string             `json:"duplicate_account_action"`
+	PlatformGroupIDs       map[string][]int64 `json:"platform_group_ids"`
+	ProxyID                *int64             `json:"proxy_id"`
 }
 
 type DataImportResult struct {
@@ -72,6 +79,8 @@ type DataImportResult struct {
 	ProxyReused    int               `json:"proxy_reused"`
 	ProxyFailed    int               `json:"proxy_failed"`
 	AccountCreated int               `json:"account_created"`
+	AccountUpdated int               `json:"account_updated"`
+	AccountIgnored int               `json:"account_ignored"`
 	AccountFailed  int               `json:"account_failed"`
 	Errors         []DataImportError `json:"errors,omitempty"`
 }
@@ -197,6 +206,10 @@ func (h *AccountHandler) ImportData(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	if _, err := normalizeDuplicateAccountAction(req.DuplicateAccountAction); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 
 	executeAdminIdempotentJSON(c, "admin.accounts.import_data", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		return h.importData(ctx, req)
@@ -211,6 +224,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 
 	dataPayload := req.Data
 	result := DataImportResult{}
+	importedAt := time.Now().UTC().Format(time.RFC3339)
 
 	existingProxies, err := h.listAllProxies(ctx)
 	if err != nil {
@@ -222,6 +236,10 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 		p := existingProxies[i]
 		key := buildProxyKey(p.Protocol, p.Host, p.Port, p.Username, p.Password)
 		proxyKeyToID[key] = p.ID
+	}
+	options, err := h.resolveDataImportOptions(ctx, req, existingProxies)
+	if err != nil {
+		return result, err
 	}
 
 	for i := range dataPayload.Proxies {
@@ -311,6 +329,12 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 	// 收集需要异步设置隐私的 Antigravity OAuth 账号
 	var privacyAccounts []*service.Account
 
+	existingAccounts, err := h.listAccountsFiltered(ctx, "", "", "", "", 0, "", "name", "asc")
+	if err != nil {
+		return result, err
+	}
+	accountByName := buildAccountByName(existingAccounts)
+
 	for i := range dataPayload.Accounts {
 		item := dataPayload.Accounts[i]
 		if err := validateDataAccount(item); err != nil {
@@ -323,48 +347,73 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			continue
 		}
 
-		var proxyID *int64
-		if item.ProxyKey != nil && *item.ProxyKey != "" {
-			if id, ok := proxyKeyToID[*item.ProxyKey]; ok {
-				proxyID = &id
-			} else {
-				result.AccountFailed++
-				result.Errors = append(result.Errors, DataImportError{
-					Kind:     "account",
-					Name:     item.Name,
-					ProxyKey: *item.ProxyKey,
-					Message:  "proxy_key not found",
-				})
-				continue
-			}
+		proxyID, proxyErr := resolveImportedAccountProxyID(item, proxyKeyToID, options.batchProxyID)
+		if proxyErr != nil {
+			result.AccountFailed++
+			result.Errors = append(result.Errors, DataImportError{
+				Kind:     "account",
+				Name:     item.Name,
+				ProxyKey: accountProxyKeyValue(item),
+				Message:  proxyErr.Error(),
+			})
+			continue
 		}
+		groupIDs, hasGroupOverride := options.groupIDsForPlatform(item.Platform)
 
 		enrichCredentialsFromIDToken(&item)
 
-		accountInput := &service.CreateAccountInput{
-			Name:                 item.Name,
-			Notes:                item.Notes,
-			Platform:             item.Platform,
-			Type:                 item.Type,
-			Credentials:          item.Credentials,
-			Extra:                item.Extra,
-			ProxyID:              proxyID,
-			Concurrency:          item.Concurrency,
-			Priority:             item.Priority,
-			RateMultiplier:       item.RateMultiplier,
-			GroupIDs:             nil,
-			ExpiresAt:            item.ExpiresAt,
-			AutoPauseOnExpired:   item.AutoPauseOnExpired,
-			SkipDefaultGroupBind: skipDefaultGroupBind,
+		accountName := normalizeImportAccountName(item.Name)
+		if existing, ok := accountByName[accountName]; ok {
+			if options.duplicateAction == duplicateAccountIgnore {
+				result.AccountIgnored++
+				continue
+			}
+			if options.duplicateAction == duplicateAccountCopy {
+				created, createErr := h.createImportedAccount(ctx, item, proxyID, groupIDs, skipDefaultGroupBind, importedAt)
+				if createErr != nil {
+					result.AccountFailed++
+					result.Errors = append(result.Errors, DataImportError{
+						Kind:    "account",
+						Name:    item.Name,
+						Message: createErr.Error(),
+					})
+					continue
+				}
+				if created.Platform == service.PlatformAntigravity && created.Type == service.AccountTypeOAuth {
+					privacyAccounts = append(privacyAccounts, created)
+				}
+				result.AccountCreated++
+				continue
+			}
+			if existing.Platform != item.Platform {
+				result.AccountFailed++
+				result.Errors = append(result.Errors, DataImportError{
+					Kind:    "account",
+					Name:    item.Name,
+					Message: fmt.Sprintf("duplicate account platform mismatch: existing=%s import=%s", existing.Platform, item.Platform),
+				})
+				continue
+			}
+			if err := h.overwriteImportedAccount(ctx, existing.ID, item, proxyID, groupIDsForUpdate(groupIDs, hasGroupOverride), importedAt); err != nil {
+				result.AccountFailed++
+				result.Errors = append(result.Errors, DataImportError{
+					Kind:    "account",
+					Name:    item.Name,
+					Message: err.Error(),
+				})
+				continue
+			}
+			result.AccountUpdated++
+			continue
 		}
 
-		created, err := h.adminService.CreateAccount(ctx, accountInput)
-		if err != nil {
+		created, createErr := h.createImportedAccount(ctx, item, proxyID, groupIDs, skipDefaultGroupBind, importedAt)
+		if createErr != nil {
 			result.AccountFailed++
 			result.Errors = append(result.Errors, DataImportError{
 				Kind:    "account",
 				Name:    item.Name,
-				Message: err.Error(),
+				Message: createErr.Error(),
 			})
 			continue
 		}
@@ -372,6 +421,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 		if created.Platform == service.PlatformAntigravity && created.Type == service.AccountTypeOAuth {
 			privacyAccounts = append(privacyAccounts, created)
 		}
+		accountByName[accountName] = *created
 		result.AccountCreated++
 	}
 

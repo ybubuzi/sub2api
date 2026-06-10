@@ -72,6 +72,15 @@ type OpsErrorLogDetail struct {
 	ErrorBody string `json:"error_body"`
 	UserAgent string `json:"user_agent"`
 
+	RequestHeaders        string `json:"request_headers"`
+	RequestBody           string `json:"request_body"`
+	RequestBodyTruncated  bool   `json:"request_body_truncated"`
+	RequestBodyBytes      *int   `json:"request_body_bytes"`
+	ResponseHeaders       string `json:"response_headers"`
+	ResponseBody          string `json:"response_body"`
+	ResponseBodyTruncated bool   `json:"response_body_truncated"`
+	ResponseBodyBytes     *int   `json:"response_body_bytes"`
+
 	// Upstream context (optional)
 	UpstreamStatusCode   *int   `json:"upstream_status_code,omitempty"`
 	UpstreamErrorMessage string `json:"upstream_error_message,omitempty"`

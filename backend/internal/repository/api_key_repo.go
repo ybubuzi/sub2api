@@ -81,7 +81,7 @@ func (r *apiKeyRepository) GetByID(ctx context.Context, id int64) (*service.APIK
 		}
 		return nil, err
 	}
-	return apiKeyEntityToService(m), nil
+	return r.apiKeyEntityToServiceWithGroupMirror(ctx, m)
 }
 
 // GetKeyAndOwnerID 根据 API Key ID 获取其 key 与所有者（用户）ID。
@@ -115,7 +115,7 @@ func (r *apiKeyRepository) GetByKey(ctx context.Context, key string) (*service.A
 		}
 		return nil, err
 	}
-	return apiKeyEntityToService(m), nil
+	return r.apiKeyEntityToServiceWithGroupMirror(ctx, m)
 }
 
 func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*service.APIKey, error) {
@@ -194,7 +194,39 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 		}
 		return nil, err
 	}
-	return apiKeyEntityToService(m), nil
+	return r.apiKeyEntityToServiceWithGroupMirror(ctx, m)
+}
+
+func (r *apiKeyRepository) apiKeyEntityToServiceWithGroupMirror(ctx context.Context, m *dbent.APIKey) (*service.APIKey, error) {
+	out := apiKeyEntityToService(m)
+	if err := r.hydrateAPIKeyGroupMirrorFields(ctx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *apiKeyRepository) hydrateAPIKeyGroupMirrorFields(ctx context.Context, apiKey *service.APIKey) error {
+	if apiKey == nil || apiKey.Group == nil || apiKey.Group.ID <= 0 {
+		return nil
+	}
+	if r == nil || r.sql == nil {
+		return fmt.Errorf("api key repository sql executor is nil")
+	}
+	var sourceID sql.NullInt64
+	var sourcePlatform string
+	var mappingBytes []byte
+	if err := scanSingleRow(ctx, r.sql, `
+		SELECT mirror_source_group_id, mirror_source_platform, mirror_model_mapping
+		FROM groups
+		WHERE id = $1 AND deleted_at IS NULL`,
+		[]any{apiKey.Group.ID},
+		&sourceID,
+		&sourcePlatform,
+		&mappingBytes,
+	); err != nil {
+		return err
+	}
+	return applyGroupMirrorRow(apiKey.Group, sourceID, sourcePlatform, mappingBytes)
 }
 
 func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey) error {
@@ -345,7 +377,11 @@ func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, param
 
 	outKeys := make([]service.APIKey, 0, len(keys))
 	for i := range keys {
-		outKeys = append(outKeys, *apiKeyEntityToService(keys[i]))
+		out, err := r.apiKeyEntityToServiceWithGroupMirror(ctx, keys[i])
+		if err != nil {
+			return nil, nil, err
+		}
+		outKeys = append(outKeys, *out)
 	}
 
 	return outKeys, paginationResultFromTotal(int64(total), params), nil

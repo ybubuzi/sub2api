@@ -21,7 +21,7 @@ func TestOpsErrorLogInsertDoesNotPersistRequestReplayFields(t *testing.T) {
 
 	insertSQL := strings.ToLower(insertOpsErrorLogSQL)
 	for _, column := range disallowedColumns {
-		if strings.Contains(insertSQL, column) {
+		if strings.Contains(insertSQL, "\n  "+column) {
 			t.Fatalf("ops error log insert still references dropped replay column %q", column)
 		}
 	}

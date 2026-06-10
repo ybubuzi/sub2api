@@ -1,16 +1,44 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+type opsCaptureRepo struct {
+	service.OpsRepository
+	insert func(context.Context, *service.OpsInsertErrorLogInput) (int64, error)
+}
+
+func (r *opsCaptureRepo) InsertErrorLog(ctx context.Context, input *service.OpsInsertErrorLogInput) (int64, error) {
+	if r.insert != nil {
+		return r.insert(ctx, input)
+	}
+	return 1, nil
+}
+
+func (r *opsCaptureRepo) BatchInsertErrorLogs(ctx context.Context, inputs []*service.OpsInsertErrorLogInput) (int64, error) {
+	if len(inputs) == 0 {
+		return 0, nil
+	}
+	for _, input := range inputs {
+		if _, err := r.InsertErrorLog(ctx, input); err != nil {
+			return 0, err
+		}
+	}
+	return int64(len(inputs)), nil
+}
 
 func resetOpsErrorLoggerStateForTest(t *testing.T) {
 	t.Helper()
@@ -137,6 +165,47 @@ func TestOpsErrorLoggerMiddleware_DoesNotBreakOuterMiddlewares(t *testing.T) {
 		r.ServeHTTP(rec, req)
 	})
 	require.Equal(t, http.StatusNoContent, rec.Code)
+}
+
+func TestOpsErrorLoggerMiddleware_CapturesObservedHTTPDetails(t *testing.T) {
+	resetOpsErrorLoggerStateForTest(t)
+	gin.SetMode(gin.TestMode)
+
+	var captured *service.OpsInsertErrorLogInput
+	repo := &opsCaptureRepo{
+		insert: func(ctx context.Context, input *service.OpsInsertErrorLogInput) (int64, error) {
+			captured = input
+			return 1, nil
+		},
+	}
+	cfg := &config.Config{}
+	cfg.Ops.Enabled = true
+	ops := service.NewOpsService(repo, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	r := gin.New()
+	r.POST("/v1/messages", OpsErrorLoggerMiddleware(ops), func(c *gin.Context) {
+		c.Header("X-Upstream-Request-Id", "req-upstream")
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"message": "bad request"}})
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"m","api_key":"secret-value"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer secret-token")
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Eventually(t, func() bool { return captured != nil }, time.Second, 10*time.Millisecond)
+	require.NotNil(t, captured.ObservedRequestHeadersJSON)
+	require.NotNil(t, captured.ObservedResponseHeadersJSON)
+	require.Contains(t, *captured.ObservedRequestHeadersJSON, `"Authorization":["[REDACTED]"]`)
+	require.NotContains(t, *captured.ObservedRequestHeadersJSON, "secret-token")
+	require.Contains(t, captured.ObservedRequestBody, `"api_key":"[REDACTED]"`)
+	require.NotContains(t, captured.ObservedRequestBody, "secret-value")
+	require.Contains(t, *captured.ObservedResponseHeadersJSON, "X-Upstream-Request-Id")
+	require.Contains(t, captured.ObservedResponseBody, "bad request")
+	require.NotNil(t, captured.ObservedRequestBodyBytes)
+	require.NotNil(t, captured.ObservedResponseBodyBytes)
 }
 
 func TestIsKnownOpsErrorType(t *testing.T) {

@@ -84,6 +84,9 @@ func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) er
 		if err := r.updateKiroCacheEmulationFields(ctx, groupIn); err != nil {
 			return err
 		}
+		if err := r.updateGroupMirrorFields(ctx, groupIn); err != nil {
+			return err
+		}
 		groupIn.CreatedAt = created.CreatedAt
 		groupIn.UpdatedAt = created.UpdatedAt
 		if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &groupIn.ID, nil); err != nil {
@@ -117,6 +120,9 @@ func (r *groupRepository) GetByIDLite(ctx context.Context, id int64) (*service.G
 		return nil, translatePersistenceError(err, service.ErrGroupNotFound, nil)
 	}
 	out := groupEntityToService(m)
+	if err := r.hydrateGroupMirrorFields(ctx, out); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 
@@ -263,6 +269,9 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 	if err := r.updateKiroCacheEmulationFields(ctx, groupIn); err != nil {
 		return err
 	}
+	if err := r.updateGroupMirrorFields(ctx, groupIn); err != nil {
+		return err
+	}
 	groupIn.UpdatedAt = updated.UpdatedAt
 	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &groupIn.ID, nil); err != nil {
 		logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group update failed: group=%d err=%v", groupIn.ID, err)
@@ -343,6 +352,9 @@ func (r *groupRepository) ListWithFilters(ctx context.Context, params pagination
 		}
 	}
 	if err := r.hydrateKiroCacheEmulationFieldsForGroups(ctx, outGroups); err != nil {
+		return nil, nil, err
+	}
+	if err := r.hydrateGroupMirrorFieldsForGroups(ctx, outGroups); err != nil {
 		return nil, nil, err
 	}
 
@@ -434,6 +446,9 @@ func (r *groupRepository) listWithAccountCountSort(ctx context.Context, q *dbent
 	if err := r.hydrateKiroCacheEmulationFieldsForGroups(ctx, outGroups); err != nil {
 		return nil, nil, err
 	}
+	if err := r.hydrateGroupMirrorFieldsForGroups(ctx, outGroups); err != nil {
+		return nil, nil, err
+	}
 
 	return outGroups, paginationResultFromTotal(int64(total), params), nil
 }
@@ -521,6 +536,9 @@ func (r *groupRepository) ListActive(ctx context.Context) ([]service.Group, erro
 	if err := r.hydrateKiroCacheEmulationFieldsForGroups(ctx, outGroups); err != nil {
 		return nil, err
 	}
+	if err := r.hydrateGroupMirrorFieldsForGroups(ctx, outGroups); err != nil {
+		return nil, err
+	}
 
 	return outGroups, nil
 }
@@ -552,6 +570,9 @@ func (r *groupRepository) ListActiveByPlatform(ctx context.Context, platform str
 		}
 	}
 	if err := r.hydrateKiroCacheEmulationFieldsForGroups(ctx, outGroups); err != nil {
+		return nil, err
+	}
+	if err := r.hydrateGroupMirrorFieldsForGroups(ctx, outGroups); err != nil {
 		return nil, err
 	}
 

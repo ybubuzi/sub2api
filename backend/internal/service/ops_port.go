@@ -101,6 +101,15 @@ type OpsInsertErrorLogInput struct {
 	ErrorSource string
 	ErrorOwner  string
 
+	ObservedRequestHeadersJSON    *string
+	ObservedRequestBody           string
+	ObservedRequestBodyTruncated  bool
+	ObservedRequestBodyBytes      *int
+	ObservedResponseHeadersJSON   *string
+	ObservedResponseBody          string
+	ObservedResponseBodyTruncated bool
+	ObservedResponseBodyBytes     *int
+
 	UpstreamStatusCode   *int
 	UpstreamErrorMessage *string
 	UpstreamErrorDetail  *string

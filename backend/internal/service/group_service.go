@@ -37,6 +37,12 @@ type GroupRepository interface {
 	UpdateSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error
 }
 
+type GroupMirrorRepository interface {
+	GetMirrorBySourceAndPlatform(ctx context.Context, sourceID int64, platform string) (*Group, error)
+	ListMirrorsBySourceID(ctx context.Context, sourceID int64) ([]Group, error)
+	UpdateMirrorModelMapping(ctx context.Context, groupID int64, mapping map[string]string) error
+}
+
 // GroupSortOrderUpdate 分组排序更新
 type GroupSortOrderUpdate struct {
 	ID        int64 `json:"id"`

@@ -114,6 +114,20 @@ export async function update(id: number, updates: UpdateGroupRequest): Promise<A
   return data
 }
 
+export interface SetGroupMirrorRequest {
+  target_platform: Extract<GroupPlatform, 'anthropic' | 'openai'>
+  enabled: boolean
+  mirror_model_mapping?: Record<string, string>
+}
+
+export async function setMirror(
+  id: number,
+  input: SetGroupMirrorRequest
+): Promise<AdminGroup> {
+  const { data } = await apiClient.put<AdminGroup>(`/admin/groups/${id}/mirror`, input)
+  return data
+}
+
 /**
  * Delete group
  * @param id - Group ID
@@ -318,6 +332,56 @@ export async function getCapacitySummary(): Promise<
   return data
 }
 
+export interface RelationshipGraphGroup {
+  id: number
+  name: string
+  platform: string
+  status: string
+}
+
+export interface RelationshipGraphApiKey {
+  id: number
+  name: string
+  user_id: number
+  status: string
+  group_id?: number | null
+}
+
+export interface RelationshipGraphAccount {
+  id: number
+  name: string
+  platform: string
+  type: string
+  status: string
+  group_ids: number[]
+}
+
+export interface RelationshipGraphEdge {
+  from: string
+  to: string
+  type: string
+}
+
+export interface RelationshipGraph {
+  groups: RelationshipGraphGroup[]
+  api_keys: RelationshipGraphApiKey[]
+  accounts: RelationshipGraphAccount[]
+  edges: RelationshipGraphEdge[]
+}
+
+export async function getRelationshipGraph(filters?: {
+  platform?: GroupPlatform
+  group_id?: number
+  include_api_keys?: boolean
+  include_accounts?: boolean
+  max_api_keys_per_group?: number
+}): Promise<RelationshipGraph> {
+  const { data } = await apiClient.get<RelationshipGraph>('/admin/groups/relationship-graph', {
+    params: filters
+  })
+  return data
+}
+
 export const groupsAPI = {
   list,
   getAll,
@@ -326,6 +390,7 @@ export const groupsAPI = {
   getModelsListCandidates,
   create,
   update,
+  setMirror,
   delete: deleteGroup,
   toggleStatus,
   getStats,
@@ -338,7 +403,8 @@ export const groupsAPI = {
   batchSetGroupRPMOverrides,
   updateSortOrder,
   getUsageSummary,
-  getCapacitySummary
+  getCapacitySummary,
+  getRelationshipGraph
 }
 
 export default groupsAPI

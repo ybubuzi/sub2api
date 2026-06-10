@@ -26,8 +26,30 @@ export async function updateApiKeyGroup(id: number, groupId: number | null): Pro
   return data
 }
 
+export interface BatchTransferApiKeyGroupResult {
+  source_group_id: number
+  target_group_id: number
+  dry_run: boolean
+  matched_count: number
+  updated_count: number
+  warnings?: string[]
+}
+
+export async function batchTransferApiKeyGroup(input: {
+  source_group_id: number
+  target_group_id: number
+  dry_run?: boolean
+}): Promise<BatchTransferApiKeyGroupResult> {
+  const { data } = await apiClient.post<BatchTransferApiKeyGroupResult>(
+    '/admin/api-keys/batch-transfer-group',
+    input
+  )
+  return data
+}
+
 export const apiKeysAPI = {
-  updateApiKeyGroup
+  updateApiKeyGroup,
+  batchTransferApiKeyGroup
 }
 
 export default apiKeysAPI

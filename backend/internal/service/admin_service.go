@@ -52,9 +52,11 @@ type AdminService interface {
 	GetAllGroups(ctx context.Context) ([]Group, error)
 	GetAllGroupsByPlatform(ctx context.Context, platform string) ([]Group, error)
 	GetGroup(ctx context.Context, id int64) (*Group, error)
+	GetRelationshipGraph(ctx context.Context, input RelationshipGraphInput) (*RelationshipGraph, error)
 	GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) ([]string, error)
 	CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error)
 	UpdateGroup(ctx context.Context, id int64, input *UpdateGroupInput) (*Group, error)
+	SetGroupMirror(ctx context.Context, id int64, input SetGroupMirrorInput) (*Group, error)
 	DeleteGroup(ctx context.Context, id int64) error
 	GetGroupAPIKeys(ctx context.Context, groupID int64, page, pageSize int) ([]APIKey, int64, error)
 	GetGroupRateMultipliers(ctx context.Context, groupID int64) ([]UserGroupRateEntry, error)
@@ -66,6 +68,7 @@ type AdminService interface {
 
 	// API Key management (admin)
 	AdminUpdateAPIKeyGroupID(ctx context.Context, keyID int64, groupID *int64) (*AdminUpdateAPIKeyGroupIDResult, error)
+	AdminBatchTransferAPIKeyGroup(ctx context.Context, input AdminBatchTransferAPIKeyGroupInput) (*AdminBatchTransferAPIKeyGroupResult, error)
 	AdminResetAPIKeyRateLimitUsage(ctx context.Context, keyID int64) (*APIKey, error)
 
 	// ReplaceUserGroup 替换用户的专属分组：授予新分组权限、迁移 Key、移除旧分组权限
@@ -187,6 +190,66 @@ type AdminBoundAuthIdentityChannel struct {
 	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
+type RelationshipGraphInput struct {
+	Platform           string
+	GroupID            int64
+	IncludeAPIKeys     bool
+	IncludeAccounts    bool
+	MaxAPIKeysPerGroup int
+}
+
+type RelationshipGraph struct {
+	Groups   []RelationshipGraphGroup   `json:"groups"`
+	APIKeys  []RelationshipGraphAPIKey  `json:"api_keys"`
+	Accounts []RelationshipGraphAccount `json:"accounts"`
+	Edges    []RelationshipGraphEdge    `json:"edges"`
+}
+
+type RelationshipGraphGroup struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Platform string `json:"platform"`
+	Status   string `json:"status"`
+}
+
+type RelationshipGraphAPIKey struct {
+	ID      int64  `json:"id"`
+	Name    string `json:"name"`
+	UserID  int64  `json:"user_id"`
+	Status  string `json:"status"`
+	GroupID *int64 `json:"group_id"`
+}
+
+type RelationshipGraphAccount struct {
+	ID       int64   `json:"id"`
+	Name     string  `json:"name"`
+	Platform string  `json:"platform"`
+	Type     string  `json:"type"`
+	Status   string  `json:"status"`
+	GroupIDs []int64 `json:"group_ids"`
+}
+
+type RelationshipGraphEdge struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+	Type string `json:"type"`
+}
+
+type AdminBatchTransferAPIKeyGroupInput struct {
+	SourceGroupID int64
+	TargetGroupID int64
+	DryRun        bool
+}
+
+type AdminBatchTransferAPIKeyGroupResult struct {
+	SourceGroupID int64    `json:"source_group_id"`
+	TargetGroupID int64    `json:"target_group_id"`
+	DryRun        bool     `json:"dry_run"`
+	MatchedCount  int64    `json:"matched_count"`
+	UpdatedCount  int64    `json:"updated_count"`
+	Warnings      []string `json:"warnings,omitempty"`
+}
+
 type CreateGroupInput struct {
 	Name             string
 	Description      string
@@ -272,6 +335,7 @@ type UpdateGroupInput struct {
 	// Kiro 模拟缓存配置（仅 kiro 分组生效）
 	KiroCacheEmulationEnabled *bool
 	KiroCacheEmulationRatio   *float64
+	MirrorModelMapping        *map[string]string
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64
 }
@@ -1924,6 +1988,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if err != nil {
 		return nil, err
 	}
+	if group.IsMirror() {
+		return s.updateMirrorGroup(ctx, group, input)
+	}
 
 	if input.Name != "" {
 		group.Name = input.Name
@@ -2140,6 +2207,14 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 }
 
 func (s *adminServiceImpl) DeleteGroup(ctx context.Context, id int64) error {
+	source, err := s.groupRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := s.deleteGroupMirrors(ctx, source); err != nil {
+		return err
+	}
+
 	var groupKeys []string
 	if s.authCacheInvalidator != nil {
 		keys, err := s.apiKeyRepo.ListKeysByGroupID(ctx, id)
@@ -2183,6 +2258,90 @@ func (s *adminServiceImpl) GetGroupAPIKeys(ctx context.Context, groupID int64, p
 		return nil, 0, err
 	}
 	return keys, result.Total, nil
+}
+
+func (s *adminServiceImpl) GetRelationshipGraph(ctx context.Context, input RelationshipGraphInput) (*RelationshipGraph, error) {
+	if input.MaxAPIKeysPerGroup <= 0 {
+		input.MaxAPIKeysPerGroup = 200
+	}
+	if input.MaxAPIKeysPerGroup > 1000 {
+		input.MaxAPIKeysPerGroup = 1000
+	}
+
+	var groups []Group
+	if input.GroupID > 0 {
+		group, err := s.groupRepo.GetByID(ctx, input.GroupID)
+		if err != nil {
+			return nil, err
+		}
+		groups = []Group{*group}
+	} else if strings.TrimSpace(input.Platform) != "" {
+		var err error
+		groups, err = s.groupRepo.ListActiveByPlatform(ctx, input.Platform)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		groups, err = s.groupRepo.ListActive(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	out := &RelationshipGraph{
+		Groups:   make([]RelationshipGraphGroup, 0, len(groups)),
+		APIKeys:  []RelationshipGraphAPIKey{},
+		Accounts: []RelationshipGraphAccount{},
+		Edges:    []RelationshipGraphEdge{},
+	}
+	seenAccounts := map[int64]struct{}{}
+	for i := range groups {
+		g := groups[i]
+		groupNodeID := fmt.Sprintf("group:%d", g.ID)
+		out.Groups = append(out.Groups, RelationshipGraphGroup{ID: g.ID, Name: g.Name, Platform: g.Platform, Status: g.Status})
+
+		if input.IncludeAPIKeys {
+			keys, pageResult, err := s.apiKeyRepo.ListByGroupID(ctx, g.ID, pagination.PaginationParams{Page: 1, PageSize: input.MaxAPIKeysPerGroup})
+			if err != nil {
+				return nil, err
+			}
+			if pageResult != nil && pageResult.Total > int64(len(keys)) {
+				out.Edges = append(out.Edges, RelationshipGraphEdge{From: groupNodeID, To: fmt.Sprintf("truncated_api_keys:%d", g.ID), Type: "api_keys_truncated"})
+			}
+			for j := range keys {
+				key := keys[j]
+				keyNodeID := fmt.Sprintf("api_key:%d", key.ID)
+				out.APIKeys = append(out.APIKeys, RelationshipGraphAPIKey{ID: key.ID, Name: key.Name, UserID: key.UserID, Status: key.Status, GroupID: key.GroupID})
+				out.Edges = append(out.Edges, RelationshipGraphEdge{From: keyNodeID, To: groupNodeID, Type: "bound_to_group"})
+			}
+		}
+
+		if input.IncludeAccounts {
+			accounts, err := s.accountRepo.ListByGroup(ctx, g.ID)
+			if err != nil {
+				return nil, err
+			}
+			for j := range accounts {
+				account := accounts[j]
+				accountNodeID := fmt.Sprintf("account:%d", account.ID)
+				if _, ok := seenAccounts[account.ID]; !ok {
+					seenAccounts[account.ID] = struct{}{}
+					out.Accounts = append(out.Accounts, RelationshipGraphAccount{ID: account.ID, Name: account.Name, Platform: account.Platform, Type: account.Type, Status: account.Status, GroupIDs: account.GroupIDs})
+				}
+				out.Edges = append(out.Edges, RelationshipGraphEdge{From: groupNodeID, To: accountNodeID, Type: "has_account"})
+			}
+		}
+
+		if g.FallbackGroupID != nil && *g.FallbackGroupID > 0 {
+			out.Edges = append(out.Edges, RelationshipGraphEdge{From: groupNodeID, To: fmt.Sprintf("group:%d", *g.FallbackGroupID), Type: "fallback_group"})
+		}
+		if g.FallbackGroupIDOnInvalidRequest != nil && *g.FallbackGroupIDOnInvalidRequest > 0 {
+			out.Edges = append(out.Edges, RelationshipGraphEdge{From: groupNodeID, To: fmt.Sprintf("group:%d", *g.FallbackGroupIDOnInvalidRequest), Type: "invalid_request_fallback_group"})
+		}
+	}
+
+	return out, nil
 }
 
 func (s *adminServiceImpl) GetGroupRateMultipliers(ctx context.Context, groupID int64) ([]UserGroupRateEntry, error) {
@@ -2350,6 +2509,59 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 	}
 
 	result.APIKey = apiKey
+	return result, nil
+}
+
+func (s *adminServiceImpl) AdminBatchTransferAPIKeyGroup(ctx context.Context, input AdminBatchTransferAPIKeyGroupInput) (*AdminBatchTransferAPIKeyGroupResult, error) {
+	if input.SourceGroupID <= 0 || input.TargetGroupID <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_GROUP_ID", "source_group_id and target_group_id must be positive")
+	}
+	if input.SourceGroupID == input.TargetGroupID {
+		return nil, infraerrors.BadRequest("SAME_GROUP", "source and target group must be different")
+	}
+
+	if _, err := s.groupRepo.GetByID(ctx, input.SourceGroupID); err != nil {
+		return nil, err
+	}
+	target, err := s.groupRepo.GetByID(ctx, input.TargetGroupID)
+	if err != nil {
+		return nil, err
+	}
+	if target.Status != StatusActive {
+		return nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
+	}
+
+	matched, err := s.apiKeyRepo.CountByGroupID(ctx, input.SourceGroupID)
+	if err != nil {
+		return nil, err
+	}
+	result := &AdminBatchTransferAPIKeyGroupResult{
+		SourceGroupID: input.SourceGroupID,
+		TargetGroupID: input.TargetGroupID,
+		DryRun:        input.DryRun,
+		MatchedCount:  matched,
+	}
+	if input.DryRun || matched == 0 {
+		return result, nil
+	}
+
+	pageSize := 500
+	for {
+		keys, _, err := s.apiKeyRepo.ListByGroupID(ctx, input.SourceGroupID, pagination.PaginationParams{Page: 1, PageSize: pageSize})
+		if err != nil {
+			return nil, err
+		}
+		if len(keys) == 0 {
+			break
+		}
+		for i := range keys {
+			if _, err := s.AdminUpdateAPIKeyGroupID(ctx, keys[i].ID, &input.TargetGroupID); err != nil {
+				result.Warnings = append(result.Warnings, fmt.Sprintf("stopped after %d updates: key %d: %v", result.UpdatedCount, keys[i].ID, err))
+				return result, nil
+			}
+			result.UpdatedCount++
+		}
+	}
 	return result, nil
 }
 

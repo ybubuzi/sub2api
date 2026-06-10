@@ -24,6 +24,9 @@ type stubAdminService struct {
 	updatedProxyIDs      []int64
 	updatedProxies       []*service.UpdateProxyInput
 	testedProxyIDs       []int64
+	updatedAccountIDs    []int64
+	updatedAccounts      []*service.UpdateAccountInput
+	updatedAccountExtras []updatedAccountExtra
 	getUserErr           error
 	createAccountErr     error
 	updateAccountErr     error
@@ -70,6 +73,11 @@ type stubAdminService struct {
 		calls     int
 	}
 	mu sync.Mutex
+}
+
+type updatedAccountExtra struct {
+	id      int64
+	updates map[string]any
 }
 
 func newStubAdminService() *stubAdminService {
@@ -261,8 +269,20 @@ func (s *stubAdminService) GetAllGroupsByPlatform(ctx context.Context, platform 
 }
 
 func (s *stubAdminService) GetGroup(ctx context.Context, id int64) (*service.Group, error) {
+	for i := range s.groups {
+		if s.groups[i].ID == id {
+			group := s.groups[i]
+			return &group, nil
+		}
+	}
 	group := service.Group{ID: id, Name: "group", Status: service.StatusActive}
 	return &group, nil
+}
+
+func (s *stubAdminService) GetRelationshipGraph(ctx context.Context, input service.RelationshipGraphInput) (*service.RelationshipGraph, error) {
+	return &service.RelationshipGraph{
+		Groups: []service.RelationshipGraphGroup{{ID: 2, Name: "group", Platform: service.PlatformAnthropic, Status: service.StatusActive}},
+	}, nil
 }
 
 func (s *stubAdminService) GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) ([]string, error) {
@@ -279,6 +299,11 @@ func (s *stubAdminService) CreateGroup(ctx context.Context, input *service.Creat
 
 func (s *stubAdminService) UpdateGroup(ctx context.Context, id int64, input *service.UpdateGroupInput) (*service.Group, error) {
 	group := service.Group{ID: id, Name: input.Name, Status: service.StatusActive}
+	return &group, nil
+}
+
+func (s *stubAdminService) SetGroupMirror(ctx context.Context, id int64, input service.SetGroupMirrorInput) (*service.Group, error) {
+	group := service.Group{ID: id, Name: "mirror", Platform: input.TargetPlatform, Status: service.StatusActive}
 	return &group, nil
 }
 
@@ -349,6 +374,10 @@ func (s *stubAdminService) CreateAccount(ctx context.Context, input *service.Cre
 }
 
 func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *service.UpdateAccountInput) (*service.Account, error) {
+	s.mu.Lock()
+	s.updatedAccountIDs = append(s.updatedAccountIDs, id)
+	s.updatedAccounts = append(s.updatedAccounts, cloneUpdateAccountInput(input))
+	s.mu.Unlock()
 	if s.updateAccountErr != nil {
 		return nil, s.updateAccountErr
 	}
@@ -356,7 +385,33 @@ func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *s
 	return &account, nil
 }
 
+func cloneUpdateAccountInput(input *service.UpdateAccountInput) *service.UpdateAccountInput {
+	copied := *input
+	if input.Credentials != nil {
+		copied.Credentials = cloneAnyMap(input.Credentials)
+	}
+	if input.Extra != nil {
+		copied.Extra = cloneAnyMap(input.Extra)
+	}
+	return &copied
+}
+
+func cloneAnyMap(input map[string]any) map[string]any {
+	copied := make(map[string]any, len(input))
+	for key, value := range input {
+		copied[key] = value
+	}
+	return copied
+}
+
 func (s *stubAdminService) UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error {
+	copied := make(map[string]any, len(updates))
+	for key, value := range updates {
+		copied[key] = value
+	}
+	s.mu.Lock()
+	s.updatedAccountExtras = append(s.updatedAccountExtras, updatedAccountExtra{id: id, updates: copied})
+	s.mu.Unlock()
 	return nil
 }
 
@@ -582,6 +637,16 @@ func (s *stubAdminService) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 		}
 	}
 	return nil, service.ErrAPIKeyNotFound
+}
+
+func (s *stubAdminService) AdminBatchTransferAPIKeyGroup(ctx context.Context, input service.AdminBatchTransferAPIKeyGroupInput) (*service.AdminBatchTransferAPIKeyGroupResult, error) {
+	return &service.AdminBatchTransferAPIKeyGroupResult{
+		SourceGroupID: input.SourceGroupID,
+		TargetGroupID: input.TargetGroupID,
+		DryRun:        input.DryRun,
+		MatchedCount:  int64(len(s.apiKeys)),
+		UpdatedCount:  int64(len(s.apiKeys)),
+	}, nil
 }
 
 func (s *stubAdminService) AdminResetAPIKeyRateLimitUsage(ctx context.Context, keyID int64) (*service.APIKey, error) {

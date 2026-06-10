@@ -28,6 +28,12 @@ type AdminUpdateAPIKeyGroupRequest struct {
 	ResetRateLimitUsage *bool  `json:"reset_rate_limit_usage"` // true=重置 5h/1d/7d 限速用量
 }
 
+type AdminBatchTransferAPIKeyGroupRequest struct {
+	SourceGroupID int64 `json:"source_group_id" binding:"required"`
+	TargetGroupID int64 `json:"target_group_id" binding:"required"`
+	DryRun        *bool `json:"dry_run"`
+}
+
 // UpdateGroup handles updating an API key's admin-managed fields.
 // PUT /api/v1/admin/api-keys/:id
 func (h *AdminAPIKeyHandler) UpdateGroup(c *gin.Context) {
@@ -73,4 +79,29 @@ func (h *AdminAPIKeyHandler) UpdateGroup(c *gin.Context) {
 		GrantedGroupName:       result.GrantedGroupName,
 	}
 	response.Success(c, resp)
+}
+
+// BatchTransferGroup moves every API key bound to one group to another group.
+// POST /api/v1/admin/api-keys/batch-transfer-group
+func (h *AdminAPIKeyHandler) BatchTransferGroup(c *gin.Context) {
+	var req AdminBatchTransferAPIKeyGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	dryRun := true
+	if req.DryRun != nil {
+		dryRun = *req.DryRun
+	}
+
+	result, err := h.adminService.AdminBatchTransferAPIKeyGroup(c.Request.Context(), service.AdminBatchTransferAPIKeyGroupInput{
+		SourceGroupID: req.SourceGroupID,
+		TargetGroupID: req.TargetGroupID,
+		DryRun:        dryRun,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
 }

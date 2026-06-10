@@ -422,8 +422,10 @@ func isOpsNoAvailableAccountError(err error) bool {
 
 type opsCaptureWriter struct {
 	gin.ResponseWriter
-	limit int
-	buf   bytes.Buffer
+	limit     int
+	buf       bytes.Buffer
+	bodyBytes int
+	truncated bool
 }
 
 const opsCaptureWriterLimit = 64 * 1024
@@ -442,6 +444,8 @@ func acquireOpsCaptureWriter(rw gin.ResponseWriter) *opsCaptureWriter {
 	w.ResponseWriter = rw
 	w.limit = opsCaptureWriterLimit
 	w.buf.Reset()
+	w.bodyBytes = 0
+	w.truncated = false
 	return w
 }
 
@@ -452,31 +456,80 @@ func releaseOpsCaptureWriter(w *opsCaptureWriter) {
 	w.ResponseWriter = nil
 	w.limit = opsCaptureWriterLimit
 	w.buf.Reset()
+	w.bodyBytes = 0
+	w.truncated = false
 	opsCaptureWriterPool.Put(w)
 }
 
 func (w *opsCaptureWriter) Write(b []byte) (int, error) {
-	if w.Status() >= 400 && w.limit > 0 && w.buf.Len() < w.limit {
-		remaining := w.limit - w.buf.Len()
-		if len(b) > remaining {
-			_, _ = w.buf.Write(b[:remaining])
-		} else {
-			_, _ = w.buf.Write(b)
-		}
+	if w.Status() >= 400 {
+		w.captureBodyBytes(b)
 	}
 	return w.ResponseWriter.Write(b)
 }
 
 func (w *opsCaptureWriter) WriteString(s string) (int, error) {
-	if w.Status() >= 400 && w.limit > 0 && w.buf.Len() < w.limit {
-		remaining := w.limit - w.buf.Len()
-		if len(s) > remaining {
-			_, _ = w.buf.WriteString(s[:remaining])
-		} else {
-			_, _ = w.buf.WriteString(s)
-		}
+	if w.Status() >= 400 {
+		w.captureBodyString(s)
 	}
 	return w.ResponseWriter.WriteString(s)
+}
+
+func (w *opsCaptureWriter) captureBodyBytes(b []byte) {
+	w.bodyBytes += len(b)
+	if w.limit <= 0 || len(b) == 0 {
+		return
+	}
+	remaining := w.limit - w.buf.Len()
+	if remaining <= 0 {
+		w.truncated = true
+		return
+	}
+	if len(b) > remaining {
+		_, _ = w.buf.Write(b[:remaining])
+		w.truncated = true
+		return
+	}
+	_, _ = w.buf.Write(b)
+}
+
+func (w *opsCaptureWriter) captureBodyString(s string) {
+	w.bodyBytes += len(s)
+	if w.limit <= 0 || s == "" {
+		return
+	}
+	remaining := w.limit - w.buf.Len()
+	if remaining <= 0 {
+		w.truncated = true
+		return
+	}
+	if len(s) > remaining {
+		_, _ = w.buf.WriteString(s[:remaining])
+		w.truncated = true
+		return
+	}
+	_, _ = w.buf.WriteString(s)
+}
+
+func (w *opsCaptureWriter) bodyString() string {
+	if w == nil || w.buf.Len() == 0 {
+		return ""
+	}
+	return string(w.buf.Bytes())
+}
+
+func (w *opsCaptureWriter) bodyBytesLen() int {
+	if w == nil {
+		return 0
+	}
+	return w.bodyBytes
+}
+
+func (w *opsCaptureWriter) bodyTruncated() bool {
+	if w == nil {
+		return false
+	}
+	return w.truncated
 }
 
 // OpsErrorLoggerMiddleware records error responses (status >= 400) into ops_error_logs.
@@ -497,6 +550,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			releaseOpsCaptureWriter(w)
 		}()
 		c.Writer = w
+		requestBody := installOpsObservedRequestBody(c)
 		c.Next()
 
 		if ops == nil {
@@ -718,6 +772,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 				CreatedAt: time.Now(),
 			}
 			applyOpsLatencyFieldsFromContext(c, entry)
+			applyOpsObservedHTTPDetails(c, entry, requestBody, w)
 
 			if apiKey != nil {
 				entry.APIKeyID = &apiKey.ID
@@ -854,6 +909,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			CreatedAt: time.Now(),
 		}
 		applyOpsLatencyFieldsFromContext(c, entry)
+		applyOpsObservedHTTPDetails(c, entry, requestBody, w)
 
 		// Capture upstream error context set by gateway services (if present).
 		// This does NOT affect the client response; it enriches Ops troubleshooting data.

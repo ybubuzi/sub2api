@@ -283,6 +283,9 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			RPMLimit:                        groupForSnapshot.RPMLimit,
 			KiroCacheEmulationEnabled:       groupForSnapshot.EffectiveKiroCacheEmulationEnabled(),
 			KiroCacheEmulationRatio:         groupForSnapshot.EffectiveKiroCacheEmulationRatio(),
+			MirrorSourceGroupID:             groupForSnapshot.MirrorSourceGroupID,
+			MirrorSourcePlatform:            groupForSnapshot.MirrorSourcePlatform,
+			MirrorModelMapping:              groupForSnapshot.MirrorModelMapping,
 		}
 	}
 	return snapshot
@@ -357,6 +360,9 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			RPMLimit:                        snapshot.Group.RPMLimit,
 			KiroCacheEmulationEnabled:       snapshot.Group.KiroCacheEmulationEnabled,
 			KiroCacheEmulationRatio:         snapshot.Group.KiroCacheEmulationRatio,
+			MirrorSourceGroupID:             snapshot.Group.MirrorSourceGroupID,
+			MirrorSourcePlatform:            snapshot.Group.MirrorSourcePlatform,
+			MirrorModelMapping:              snapshot.Group.MirrorModelMapping,
 		}
 		normalizeKiroCacheEmulationFields(apiKey.Group)
 	}
