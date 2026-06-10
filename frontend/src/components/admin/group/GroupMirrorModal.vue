@@ -1,5 +1,5 @@
 <template>
-  <BaseDialog :show="show" :title="t('admin.groups.mirror.title')" width="wide" @close="close">
+  <BaseDialog :show="show" :title="dialogTitle" width="wide" @close="close">
     <div v-if="group" class="space-y-4">
       <div class="flex flex-wrap items-center gap-3 rounded-lg bg-gray-50 px-4 py-2.5 text-sm dark:bg-dark-700">
         <span class="inline-flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
@@ -59,6 +59,12 @@
                 <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {{ t('admin.groups.mirror.mappingHint') }}
                 </div>
+                <div v-if="modelCandidates.loading.value" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.groups.mirror.candidatesLoading') }}
+                </div>
+                <div v-if="modelCandidates.error.value" class="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {{ modelCandidates.error.value }}
+                </div>
               </div>
               <button type="button" class="btn btn-secondary btn-sm" @click="addRow">
                 <Icon name="plus" size="sm" class="mr-1" />
@@ -67,6 +73,12 @@
             </div>
 
             <div class="max-h-[420px] space-y-3 overflow-y-auto p-4">
+              <datalist :id="clientModelListID">
+                <option v-for="model in clientModelOptions" :key="model" :value="model" />
+              </datalist>
+              <datalist :id="sourceModelListID">
+                <option v-for="model in sourceModelOptions" :key="model" :value="model" />
+              </datalist>
               <div v-if="mappingRows.length === 0" class="py-6 text-center text-sm text-gray-400 dark:text-gray-500">
                 {{ t('admin.groups.mirror.noMappings') }}
               </div>
@@ -79,6 +91,7 @@
                   v-model="row.from"
                   type="text"
                   class="input"
+                  :list="clientModelListID"
                   :placeholder="t('admin.groups.mirror.clientModel')"
                 />
                 <div class="hidden items-center text-gray-400 md:flex">
@@ -88,6 +101,7 @@
                   v-model="row.to"
                   type="text"
                   class="input"
+                  :list="sourceModelListID"
                   :placeholder="t('admin.groups.mirror.sourceModel')"
                 />
                 <button
@@ -127,6 +141,10 @@ import type { AdminGroup, GroupPlatform } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
+import {
+  mergeMirrorModelCandidates
+} from './groupMirrorModels'
+import { useGroupMirrorModelCandidates } from './useGroupMirrorModelCandidates'
 
 interface MappingRow {
   id: number
@@ -154,11 +172,20 @@ const mirrorEnabled = ref(false)
 const mappingRows = ref<MappingRow[]>([])
 const mirrorIndex = ref<AdminGroup[]>([])
 let rowID = 0
+const modelCandidates = useGroupMirrorModelCandidates({
+  errorMessage: () => t('admin.groups.mirror.candidatesLoadFailed'),
+  onError: appStore.showError
+})
 
 const isMirror = computed(() => Boolean(props.group?.is_mirror || props.group?.mirror_source_group_id))
 const isSupported = computed(() => props.group?.platform === 'openai' || props.group?.platform === 'anthropic')
 const saveDisabled = computed(() => {
   return saving.value || !isSupported.value || mirrorIndexLoading.value || Boolean(mirrorIndexError.value)
+})
+const dialogTitle = computed(() => {
+  return isMirror.value || sourceMirror.value
+    ? t('admin.groups.mirror.editTitle')
+    : t('admin.groups.mirror.title')
 })
 const targetPlatform = computed<GroupPlatform>(() => {
   if (!props.group) return 'anthropic'
@@ -174,6 +201,17 @@ const sourceMirror = computed(() => {
 const mirrorCandidates = computed(() => {
   return mirrorIndex.value.length > 0 ? mirrorIndex.value : props.groups
 })
+const clientModelOptions = computed(() => mergeMirrorModelCandidates({
+  primary: modelCandidates.clientModels.value,
+  secondary: modelCandidates.sourceModels.value,
+  existing: mappingRows.value.map((row) => row.from)
+}))
+const sourceModelOptions = computed(() => mergeMirrorModelCandidates({
+  primary: modelCandidates.sourceModels.value,
+  existing: mappingRows.value.map((row) => row.to)
+}))
+const clientModelListID = computed(() => `mirror-client-models-${props.group?.id ?? 'new'}`)
+const sourceModelListID = computed(() => `mirror-source-models-${props.group?.id ?? 'new'}`)
 
 const enabledClass = 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-300'
 const disabledClass = 'border-gray-200 bg-white text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300'
@@ -187,8 +225,10 @@ watch(
 async function hydrateState(): Promise<void> {
   mirrorIndexError.value = ''
   mirrorIndex.value = []
+  modelCandidates.clear()
   await loadMirrorIndex()
   resetState()
+  await modelCandidates.load(props.group, props.show)
 }
 
 async function loadMirrorIndex(): Promise<void> {

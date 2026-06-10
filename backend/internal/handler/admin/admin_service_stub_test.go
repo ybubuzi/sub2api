@@ -27,6 +27,10 @@ type stubAdminService struct {
 	updatedAccountIDs    []int64
 	updatedAccounts      []*service.UpdateAccountInput
 	updatedAccountExtras []updatedAccountExtra
+	updatedGroupID       int64
+	updatedGroupInput    *service.UpdateGroupInput
+	setMirrorGroupID     int64
+	setMirrorInput       service.SetGroupMirrorInput
 	getUserErr           error
 	createAccountErr     error
 	updateAccountErr     error
@@ -298,11 +302,15 @@ func (s *stubAdminService) CreateGroup(ctx context.Context, input *service.Creat
 }
 
 func (s *stubAdminService) UpdateGroup(ctx context.Context, id int64, input *service.UpdateGroupInput) (*service.Group, error) {
+	s.updatedGroupID = id
+	s.updatedGroupInput = input
 	group := service.Group{ID: id, Name: input.Name, Status: service.StatusActive}
 	return &group, nil
 }
 
 func (s *stubAdminService) SetGroupMirror(ctx context.Context, id int64, input service.SetGroupMirrorInput) (*service.Group, error) {
+	s.setMirrorGroupID = id
+	s.setMirrorInput = input
 	group := service.Group{ID: id, Name: "mirror", Platform: input.TargetPlatform, Status: service.StatusActive}
 	return &group, nil
 }

@@ -438,6 +438,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		RPMLimit:                        req.RPMLimit,
 		KiroCacheEmulationEnabled:       req.KiroCacheEmulationEnabled,
 		KiroCacheEmulationRatio:         req.KiroCacheEmulationRatio,
+		MirrorModelMapping:              req.MirrorModelMapping,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {

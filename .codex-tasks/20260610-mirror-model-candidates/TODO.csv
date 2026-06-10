@@ -1,0 +1,5 @@
+id,task,status,completed_at,notes
+1,Inspect existing model candidate sources,DONE,2026-06-10,Existing backend endpoint returns platform defaults plus account model_mapping keys for schedulable accounts in the group.
+2,Implement mirror modal candidate loading and selection,DONE,2026-06-10,Mirror modal now loads target/source platform candidates and exposes them through datalist inputs while keeping manual input.
+3,Run focused frontend tests/typecheck,DONE,2026-06-10,Focused Vitest specs and vue-tsc passed.
+4,Record validation and deployment notes,DONE,2026-06-10,Progress file updated with validation commands and implementation notes.

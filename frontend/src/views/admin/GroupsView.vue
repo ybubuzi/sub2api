@@ -323,8 +323,8 @@
                 @click="handleMirror(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-sky-600 dark:hover:bg-dark-700 dark:hover:text-sky-400"
               >
-                <Icon name="link" size="sm" />
-                <span class="text-xs">{{ t("admin.groups.mirror.action") }}</span>
+                <Icon :name="hasExistingMirror(row) ? 'edit' : 'link'" size="sm" />
+                <span class="text-xs">{{ mirrorActionLabel(row) }}</span>
               </button>
               <button
                 @click="handleRateMultipliers(row)"
@@ -4343,6 +4343,23 @@ const isMirrorGroup = (group: AdminGroup) => {
 
 const canMirrorGroup = (group: AdminGroup) => {
   return group.platform === "openai" || group.platform === "anthropic";
+};
+
+const mirrorTargetPlatform = (group: AdminGroup) => {
+  return group.platform === "openai" ? "anthropic" : "openai";
+};
+
+const hasExistingMirror = (group: AdminGroup) => {
+  if (isMirrorGroup(group)) return true;
+  if (!canMirrorGroup(group)) return false;
+  const targetPlatform = mirrorTargetPlatform(group);
+  return groups.value.some((candidate) => {
+    return candidate.mirror_source_group_id === group.id && candidate.platform === targetPlatform;
+  });
+};
+
+const mirrorActionLabel = (group: AdminGroup) => {
+  return t(hasExistingMirror(group) ? "admin.groups.mirror.editAction" : "admin.groups.mirror.action");
 };
 
 const handleMirror = (group: AdminGroup) => {

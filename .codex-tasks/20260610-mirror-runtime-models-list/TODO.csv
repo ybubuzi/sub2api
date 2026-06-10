@@ -1,0 +1,6 @@
+id,task,status,completed_at,notes
+1,Inspect gateway models-list mirror behavior,DONE,2026-06-10,Mirror keys currently query mirror group accounts and fall back to platform defaults.
+2,Implement runtime mirror models-list and request mapping fix,DONE,2026-06-10,Mirror /v1/models returns client-facing mirror mapping keys and request mapping is covered.
+3,Expose mirror mapping edit flow in admin UI,DONE,2026-06-10,Existing mirror rows now show edit mapping action and dialog title.
+4,Add focused backend and frontend coverage,DONE,2026-06-10,Added handler tests for runtime models list request mapping and admin mapping updates.
+5,Run validation and record results,DONE,2026-06-10,Backend focused tests and frontend typecheck passed.

@@ -37,6 +37,7 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
 	router.GET("/api/v1/admin/groups/:id", groupHandler.GetByID)
 	router.POST("/api/v1/admin/groups", groupHandler.Create)
 	router.PUT("/api/v1/admin/groups/:id", groupHandler.Update)
+	router.PUT("/api/v1/admin/groups/:id/mirror", groupHandler.SetMirror)
 	router.DELETE("/api/v1/admin/groups/:id", groupHandler.Delete)
 	router.GET("/api/v1/admin/groups/:id/stats", groupHandler.GetStats)
 	router.GET("/api/v1/admin/groups/:id/api-keys", groupHandler.GetGroupAPIKeys)
@@ -212,6 +213,50 @@ func TestGroupHandlerEndpoints(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/groups/2/api-keys", nil)
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestGroupHandlerUpdateMirrorModelMapping(t *testing.T) {
+	router, adminSvc := setupAdminRouter()
+	body, err := json.Marshal(map[string]any{
+		"mirror_model_mapping": map[string]string{
+			"qwen3.6-plus": "gpt-5.4",
+		},
+	})
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/groups/31", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(31), adminSvc.updatedGroupID)
+	require.NotNil(t, adminSvc.updatedGroupInput)
+	require.NotNil(t, adminSvc.updatedGroupInput.MirrorModelMapping)
+	require.Equal(t, "gpt-5.4", (*adminSvc.updatedGroupInput.MirrorModelMapping)["qwen3.6-plus"])
+}
+
+func TestGroupHandlerSetMirrorCanUpdateMapping(t *testing.T) {
+	router, adminSvc := setupAdminRouter()
+	body, err := json.Marshal(map[string]any{
+		"target_platform": "anthropic",
+		"enabled":         true,
+		"mirror_model_mapping": map[string]string{
+			"qwen3.6-plus": "gpt-5.4",
+		},
+	})
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/groups/30/mirror", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(30), adminSvc.setMirrorGroupID)
+	require.True(t, adminSvc.setMirrorInput.Enabled)
+	require.Equal(t, "anthropic", adminSvc.setMirrorInput.TargetPlatform)
+	require.Equal(t, "gpt-5.4", adminSvc.setMirrorInput.MirrorModelMapping["qwen3.6-plus"])
 }
 
 func TestProxyHandlerEndpoints(t *testing.T) {

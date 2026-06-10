@@ -1,6 +1,9 @@
 package service
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 const (
 	GroupMirrorTargetPlatformOpenAI    = PlatformOpenAI
@@ -36,6 +39,27 @@ func (g *Group) ResolveMirrorMappedModel(requestedModel string) string {
 		return ""
 	}
 	return strings.TrimSpace(mapped)
+}
+
+func (g *Group) MirrorClientModelIDs() []string {
+	if g == nil || len(g.MirrorModelMapping) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(g.MirrorModelMapping))
+	seen := make(map[string]struct{}, len(g.MirrorModelMapping))
+	for model := range g.MirrorModelMapping {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			continue
+		}
+		if _, ok := seen[model]; ok {
+			continue
+		}
+		seen[model] = struct{}{}
+		ids = append(ids, model)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 func APIKeyRoutingGroupID(apiKey *APIKey) *int64 {
