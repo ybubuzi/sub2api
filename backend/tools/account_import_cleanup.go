@@ -74,7 +74,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			log.Printf("close database: %v", closeErr)
+		}
+	}()
 	if err := db.PingContext(ctx); err != nil {
 		log.Fatal(err)
 	}
@@ -169,7 +173,7 @@ func env(key string, fallback string) string {
 	return value
 }
 
-func findDuplicates(ctx context.Context, db *sql.DB, names []string) ([]duplicateRow, error) {
+func findDuplicates(ctx context.Context, db *sql.DB, names []string) (duplicates []duplicateRow, err error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
@@ -177,7 +181,11 @@ func findDuplicates(ctx context.Context, db *sql.DB, names []string) ([]duplicat
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 	return scanDuplicates(rows)
 }
 

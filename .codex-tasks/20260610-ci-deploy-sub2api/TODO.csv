@@ -1,0 +1,6 @@
+id,task,status,completed_at,notes
+1,Push current commits to origin/main,DONE,2026-06-10T18:00:22+08:00,"Pushed fd6caf04 to GitHub; Docker Build & Push succeeded, CI failed."
+2,Fix GitHub CI failures,DONE,2026-06-10T18:14:02+08:00,"Fixed lint findings and unit/API contract failures; local targeted tests, diff check, and golangci-lint passed."
+3,Repush and wait for GitHub workflows,IN_PROGRESS,,"Need CI and Docker Build & Push green for latest commit."
+4,Inspect server sub2api boundaries,TODO,,"Read-only checks for docker/nginx/ports; do not touch sub2api-kiro."
+5,Prepare and verify candidate sub2api container,TODO,,"Pull/run candidate without production switch; validate before user decides overwrite."

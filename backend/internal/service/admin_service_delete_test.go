@@ -175,6 +175,8 @@ func (s *userRepoStub) DisableTotp(ctx context.Context, userID int64) error {
 
 type groupRepoStub struct {
 	affectedUserIDs []int64
+	group           *Group
+	getErr          error
 	deleteErr       error
 	deleteCalls     []int64
 }
@@ -184,7 +186,13 @@ func (s *groupRepoStub) Create(ctx context.Context, group *Group) error {
 }
 
 func (s *groupRepoStub) GetByID(ctx context.Context, id int64) (*Group, error) {
-	panic("unexpected GetByID call")
+	if s.getErr != nil {
+		return nil, s.getErr
+	}
+	if s.group != nil {
+		return s.group, nil
+	}
+	return &Group{ID: id, Status: StatusActive}, nil
 }
 
 func (s *groupRepoStub) GetByIDLite(ctx context.Context, id int64) (*Group, error) {

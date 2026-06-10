@@ -515,7 +515,7 @@ func (w *opsCaptureWriter) bodyString() string {
 	if w == nil || w.buf.Len() == 0 {
 		return ""
 	}
-	return string(w.buf.Bytes())
+	return w.buf.String()
 }
 
 func (w *opsCaptureWriter) bodyBytesLen() int {

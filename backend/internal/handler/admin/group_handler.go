@@ -163,8 +163,8 @@ type UpdateGroupRequest struct {
 	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
 	RPMLimit *int `json:"rpm_limit"`
 	// Kiro 模拟缓存配置（仅 kiro 分组生效）
-	KiroCacheEmulationEnabled *bool    `json:"kiro_cache_emulation_enabled"`
-	KiroCacheEmulationRatio   *float64 `json:"kiro_cache_emulation_ratio"`
+	KiroCacheEmulationEnabled *bool              `json:"kiro_cache_emulation_enabled"`
+	KiroCacheEmulationRatio   *float64           `json:"kiro_cache_emulation_ratio"`
 	MirrorModelMapping        *map[string]string `json:"mirror_model_mapping"`
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`

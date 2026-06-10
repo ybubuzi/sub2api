@@ -29,8 +29,22 @@ func newAPIKeyRepoSQLite(t *testing.T) (*apiKeyRepository, *dbent.Client) {
 	drv := entsql.OpenDB(dialect.SQLite, db)
 	client := enttest.NewClient(t, enttest.WithOptions(dbent.Driver(drv)))
 	t.Cleanup(func() { _ = client.Close() })
+	addAPIKeyRepoSQLiteMirrorColumns(t, db)
 
-	return &apiKeyRepository{client: client}, client
+	return newAPIKeyRepositoryWithSQL(client, db), client
+}
+
+func addAPIKeyRepoSQLiteMirrorColumns(t *testing.T, db *sql.DB) {
+	t.Helper()
+	columns := []string{
+		"ALTER TABLE groups ADD COLUMN mirror_source_group_id BIGINT",
+		"ALTER TABLE groups ADD COLUMN mirror_source_platform TEXT NOT NULL DEFAULT ''",
+		"ALTER TABLE groups ADD COLUMN mirror_model_mapping TEXT NOT NULL DEFAULT '{}'",
+	}
+	for _, query := range columns {
+		_, err := db.Exec(query)
+		require.NoError(t, err)
+	}
 }
 
 func mustCreateAPIKeyRepoUser(t *testing.T, ctx context.Context, client *dbent.Client, email string) *service.User {

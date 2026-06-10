@@ -93,7 +93,7 @@ func (b *opsObservedBodyCapture) bodyString() string {
 	if b == nil || b.buf.Len() == 0 {
 		return ""
 	}
-	return string(b.buf.Bytes())
+	return b.buf.String()
 }
 
 func (b *opsObservedBodyCapture) bodyBytes() (int, bool) {
