@@ -2,9 +2,11 @@
   <AppLayout>
     <TablePageLayout>
       <template #actions>
-        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <!-- Total Requests -->
-          <div class="card p-4">
+        <div class="space-y-4">
+          <UptimeChartPanel scope="user" />
+          <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <!-- Total Requests -->
+            <div class="card p-4">
           <div class="flex items-center gap-3">
             <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
               <Icon name="document" size="md" class="text-blue-600 dark:text-blue-400" />
@@ -83,6 +85,7 @@
             </div>
           </div>
         </div>
+          </div>
         </div>
       </template>
 
@@ -549,6 +552,7 @@ import Pagination from '@/components/common/Pagination.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import UptimeChartPanel from '@/components/charts/UptimeChartPanel.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { UsageLog, ApiKey, UsageQueryParams, UsageStatsResponse } from '@/types'
 import type { Column } from '@/components/common/types'

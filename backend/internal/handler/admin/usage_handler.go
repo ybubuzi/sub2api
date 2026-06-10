@@ -25,6 +25,7 @@ type UsageHandler struct {
 	apiKeyService  *service.APIKeyService
 	adminService   service.AdminService
 	cleanupService *service.UsageCleanupService
+	uptimeService  *service.UptimeChartService
 }
 
 // NewUsageHandler creates a new admin usage handler
@@ -33,12 +34,14 @@ func NewUsageHandler(
 	apiKeyService *service.APIKeyService,
 	adminService service.AdminService,
 	cleanupService *service.UsageCleanupService,
+	uptimeService *service.UptimeChartService,
 ) *UsageHandler {
 	return &UsageHandler{
 		usageService:   usageService,
 		apiKeyService:  apiKeyService,
 		adminService:   adminService,
 		cleanupService: cleanupService,
+		uptimeService:  uptimeService,
 	}
 }
 

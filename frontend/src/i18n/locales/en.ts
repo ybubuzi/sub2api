@@ -933,7 +933,25 @@ export default {
     exportExcelSuccess: 'Usage data exported successfully (Excel format)',
     exportExcelFailed: 'Failed to export usage data',
     imageUnit: ' images',
-    userAgent: 'User-Agent'
+    userAgent: 'User-Agent',
+    uptimeChart: 'Uptime',
+    uptimeTotal: 'Total',
+    uptimeSuccess: 'Success',
+    uptimeFailure: 'Failure',
+    uptimeAvailability: 'Availability',
+    uptimeNoData: 'No uptime data',
+    uptimeFailedToLoad: 'Failed to load uptime data',
+    uptimeWindows: {
+      oneHour: '1 hour',
+      sixHours: '6 hours'
+    },
+    uptimeDimensions: {
+      all: 'All',
+      allSite: 'Site-wide',
+      apiKey: 'API Key',
+      model: 'Model',
+      group: 'Group'
+    }
   },
 
   // Shared keys for channel monitor (admin + user views)
