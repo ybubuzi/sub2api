@@ -50,6 +50,7 @@ type UsageHandler struct {
 	apiKeyService  *service.APIKeyService
 	opsService     *service.OpsService
 	settingService *service.SettingService
+	uptimeService  *service.UptimeChartService
 }
 
 // NewUsageHandler creates a new UsageHandler
@@ -58,12 +59,14 @@ func NewUsageHandler(
 	apiKeyService *service.APIKeyService,
 	opsService *service.OpsService,
 	settingService *service.SettingService,
+	uptimeService *service.UptimeChartService,
 ) *UsageHandler {
 	return &UsageHandler{
 		usageService:   usageService,
 		apiKeyService:  apiKeyService,
 		opsService:     opsService,
 		settingService: settingService,
+		uptimeService:  uptimeService,
 	}
 }
 

@@ -2,6 +2,7 @@
   <AppLayout>
     <div class="space-y-6">
       <UsageStatsCards :stats="usageStats" />
+      <UptimeChartPanel scope="admin" />
       <!-- Charts Section -->
       <div class="space-y-4">
         <div class="card p-4">
@@ -170,6 +171,7 @@ import { listErrorLogs } from '@/api/admin/ops'
 import type { OpsErrorLog } from '@/api/admin/ops'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'; import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'; import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
+import UptimeChartPanel from '@/components/charts/UptimeChartPanel.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams } from '@/api/admin/usage'
 

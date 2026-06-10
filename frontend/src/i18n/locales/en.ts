@@ -1031,6 +1031,24 @@ export default {
         loadFailed: 'Failed to load detail, please try again',
       },
     },
+    uptimeChart: 'Uptime',
+    uptimeTotal: 'Total',
+    uptimeSuccess: 'Success',
+    uptimeFailure: 'Failure',
+    uptimeAvailability: 'Availability',
+    uptimeNoData: 'No uptime data',
+    uptimeFailedToLoad: 'Failed to load uptime data',
+    uptimeWindows: {
+      oneHour: '1 hour',
+      sixHours: '6 hours'
+    },
+    uptimeDimensions: {
+      all: 'All',
+      allSite: 'Site-wide',
+      apiKey: 'API Key',
+      model: 'Model',
+      group: 'Group'
+    }
   },
 
   // Shared keys for channel monitor (admin + user views)

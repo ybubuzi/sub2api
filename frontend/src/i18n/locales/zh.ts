@@ -1035,6 +1035,24 @@ export default {
         loadFailed: '加载详情失败，请稍后重试',
       },
     },
+    uptimeChart: '可用性',
+    uptimeTotal: '总请求',
+    uptimeSuccess: '成功',
+    uptimeFailure: '失败',
+    uptimeAvailability: '可用率',
+    uptimeNoData: '暂无可用性数据',
+    uptimeFailedToLoad: '加载可用性数据失败',
+    uptimeWindows: {
+      oneHour: '1 小时',
+      sixHours: '6 小时'
+    },
+    uptimeDimensions: {
+      all: '全部',
+      allSite: '全站',
+      apiKey: 'API 密钥',
+      model: '模型',
+      group: '分组'
+    }
   },
 
   // Shared keys for channel monitor (admin + user views)

@@ -1,6 +1,7 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
+      <UptimeChartPanel scope="user" />
       <UsageStatsCards :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
 
       <div class="space-y-4">
@@ -200,6 +201,7 @@ import ModelDistributionChart from '@/components/charts/ModelDistributionChart.v
 import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
+import UptimeChartPanel from '@/components/charts/UptimeChartPanel.vue'
 import Icon from '@/components/icons/Icon.vue'
 import UserErrorRequestsTable from '@/components/user/UserErrorRequestsTable.vue'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
