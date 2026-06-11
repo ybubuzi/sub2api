@@ -1128,6 +1128,19 @@ func (s *OpenAIGatewayService) forwardAsAnthropicViaChatCompletions(
 				}
 			}
 		}
+		// Emit terminal events so the buffered reader can detect completion.
+		if err := scanner.Err(); err == nil {
+			finalEvents := apicompat.FinalizeChatCompletionsResponsesStream(state)
+			for _, event := range finalEvents {
+				sse, err := apicompat.ResponsesEventToSSE(event)
+				if err != nil {
+					continue
+				}
+				if _, err := fmt.Fprint(pw, sse); err != nil {
+					return
+				}
+			}
+		}
 	}()
 
 	if clientStream {
