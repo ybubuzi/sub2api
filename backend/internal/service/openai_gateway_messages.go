@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -242,6 +243,14 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	token, _, err := s.GetAccessToken(ctx, account)
 	if err != nil {
 		return nil, fmt.Errorf("get access token: %w", err)
+	}
+
+	// 5b. For API key accounts whose upstream doesn't support /v1/responses,
+	// fall back to Chat Completions for the connection, then convert the
+	// Chat Completions response back to Anthropic Messages format.
+	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+		return s.forwardAsAnthropicViaChatCompletions(ctx, c, account, responsesBody,
+			originalModel, billingModel, upstreamModel, clientStream, startTime)
 	}
 
 	// 6. Build upstream request
@@ -979,4 +988,150 @@ func copyOpenAIUsageFromResponsesUsage(usage *apicompat.ResponsesUsage) OpenAIUs
 		result.CacheReadInputTokens = usage.InputTokensDetails.CachedTokens
 	}
 	return result
+}
+
+// forwardAsAnthropicViaChatCompletions serves /v1/messages clients through an
+// upstream that only supports /v1/chat/completions (no /v1/responses).
+// It converts the Responses-format body to Chat Completions, sends to upstream,
+// and converts the Chat Completions response back to Anthropic Messages format.
+func (s *OpenAIGatewayService) forwardAsAnthropicViaChatCompletions(
+	ctx context.Context,
+	c *gin.Context,
+	account *Account,
+	responsesBody []byte,
+	originalModel, billingModel, upstreamModel string,
+	clientStream bool,
+	startTime time.Time,
+) (*OpenAIForwardResult, error) {
+	var responsesReq apicompat.ResponsesRequest
+	if err := json.Unmarshal(responsesBody, &responsesReq); err != nil {
+		return nil, fmt.Errorf("parse responses request: %w", err)
+	}
+
+	chatReq, err := apicompat.ResponsesToChatCompletionsRequest(&responsesReq)
+	if err != nil {
+		return nil, fmt.Errorf("convert responses to chat completions: %w", err)
+	}
+	chatReq.Model = upstreamModel
+	chatReq.Stream = true
+	chatReq.StreamOptions = &apicompat.ChatStreamOptions{IncludeUsage: true}
+
+	chatBody, err := json.Marshal(chatReq)
+	if err != nil {
+		return nil, fmt.Errorf("marshal chat request: %w", err)
+	}
+
+	token, _, err := s.GetAccessToken(ctx, account)
+	if err != nil {
+		return nil, fmt.Errorf("get access token: %w", err)
+	}
+
+	baseURL := account.GetOpenAIBaseURL()
+	if baseURL == "" {
+		baseURL = "https://api.openai.com"
+	}
+	validatedURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base_url: %w", err)
+	}
+	targetURL := buildOpenAIChatCompletionsURL(validatedURL)
+
+	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
+	upstreamReq, err := http.NewRequestWithContext(upstreamCtx, http.MethodPost, targetURL, bytes.NewReader(chatBody))
+	releaseUpstreamCtx()
+	if err != nil {
+		return nil, fmt.Errorf("build upstream request: %w", err)
+	}
+	upstreamReq = upstreamReq.WithContext(WithHTTPUpstreamProfile(upstreamReq.Context(), HTTPUpstreamProfileOpenAI))
+	upstreamReq.Header.Set("Content-Type", "application/json")
+	upstreamReq.Header.Set("Authorization", "Bearer "+token)
+	upstreamReq.Header.Set("Accept", "text/event-stream")
+
+	proxyURL := ""
+	if account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	if err != nil {
+		safeErr := sanitizeUpstreamErrorMessage(err.Error())
+		setOpsUpstreamError(c, 0, safeErr, "")
+		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+			Platform:           account.Platform,
+			AccountID:          account.ID,
+			AccountName:        account.Name,
+			UpstreamStatusCode: 0,
+			Kind:               "request_error",
+			Message:            safeErr,
+		})
+		writeAnthropicError(c, http.StatusBadGateway, "api_error", "Upstream request failed")
+		return nil, fmt.Errorf("upstream request failed: %s", safeErr)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+		_ = resp.Body.Close()
+		if s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, "", respBody) {
+			s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
+			return nil, &UpstreamFailoverError{
+				StatusCode:             resp.StatusCode,
+				ResponseBody:           respBody,
+				RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
+			}
+		}
+		writeAnthropicError(c, resp.StatusCode, "api_error",
+			strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
+		return nil, fmt.Errorf("upstream error: status=%d body=%s", resp.StatusCode, string(respBody))
+	}
+
+	pr, pw := io.Pipe()
+	virtualResp := &http.Response{
+		StatusCode: resp.StatusCode,
+		Header:     resp.Header.Clone(),
+		Body:       pr,
+	}
+
+	go func() {
+		defer pw.Close()
+		scanner := bufio.NewScanner(resp.Body)
+		maxLineSize := defaultMaxLineSize
+		if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
+			maxLineSize = s.cfg.Gateway.MaxLineSize
+		}
+		scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
+		state := apicompat.NewChatCompletionsToResponsesStreamState(originalModel)
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			payload, ok := extractOpenAISSEDataLine(line)
+			if !ok {
+				continue
+			}
+			payload = strings.TrimSpace(payload)
+			if payload == "" || payload == "[DONE]" {
+				continue
+			}
+
+			var chunk apicompat.ChatCompletionsChunk
+			if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+				continue
+			}
+
+			events := apicompat.ChatCompletionsChunkToResponsesEvents(&chunk, state)
+			for _, event := range events {
+				sse, err := apicompat.ResponsesEventToSSE(event)
+				if err != nil {
+					continue
+				}
+				if _, err := fmt.Fprint(pw, sse); err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	if clientStream {
+		return s.handleAnthropicStreamingResponse(virtualResp, c, originalModel, billingModel, upstreamModel, startTime)
+	}
+	return s.handleAnthropicBufferedStreamingResponse(virtualResp, c, originalModel, billingModel, upstreamModel, startTime)
 }
