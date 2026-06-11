@@ -1092,7 +1092,7 @@ func (s *OpenAIGatewayService) forwardAsAnthropicViaChatCompletions(
 	}
 
 	go func() {
-		defer pw.Close()
+		defer func() { _ = pw.Close() }()
 		scanner := bufio.NewScanner(resp.Body)
 		maxLineSize := defaultMaxLineSize
 		if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
