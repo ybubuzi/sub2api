@@ -63,6 +63,5 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             GOPROXY=https://goproxy.cn,direct
-            VERSION=ci-${{ github.sha }}
             COMMIT=${{ github.sha }}
             DATE=${{ github.event.head_commit.timestamp }}

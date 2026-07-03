@@ -91,6 +91,8 @@ RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     curl \
+    nodejs \
+    npm \
     su-exec \
     && rm -rf /var/cache/apk/*
 

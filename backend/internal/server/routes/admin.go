@@ -106,6 +106,24 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
+
+		// 中转站余额监控
+		registerRelayBalanceRoutes(admin, h)
+	}
+}
+
+func registerRelayBalanceRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	relayBalance := admin.Group("/relay-balance")
+	{
+		relayBalance.GET("/stations", h.Admin.RelayBalance.ListStations)
+		relayBalance.POST("/stations", h.Admin.RelayBalance.CreateStation)
+		relayBalance.GET("/stations/:id", h.Admin.RelayBalance.GetStation)
+		relayBalance.PUT("/stations/:id", h.Admin.RelayBalance.UpdateStation)
+		relayBalance.DELETE("/stations/:id", h.Admin.RelayBalance.DeleteStation)
+		relayBalance.POST("/stations/:id/run", h.Admin.RelayBalance.RunNow)
+		relayBalance.GET("/runs", h.Admin.RelayBalance.ListRuns)
+		relayBalance.GET("/trend", h.Admin.RelayBalance.GetTrend)
+		relayBalance.GET("/total-balance", h.Admin.RelayBalance.GetTotalBalance)
 	}
 }
 

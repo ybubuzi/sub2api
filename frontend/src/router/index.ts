@@ -514,6 +514,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/relay-balance',
+    name: 'AdminRelayBalance',
+    component: () => import('@/views/admin/RelayBalanceView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Relay Balance Monitor',
+      titleKey: 'admin.relayBalance.title',
+      descriptionKey: 'admin.relayBalance.description'
+    }
+  },
+  {
     path: '/admin/redeem',
     name: 'AdminRedeem',
     component: () => import('@/views/admin/RedeemView.vue'),
