@@ -64,7 +64,7 @@ func (r *relayBalanceRepository) ListStations(ctx context.Context, params servic
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	items := []*service.RelayBalanceStation{}
 	for rows.Next() {
 		station, err := scanRelayBalanceStationRows(rows)
@@ -81,7 +81,7 @@ func (r *relayBalanceRepository) ListEnabledStations(ctx context.Context) ([]*se
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	items := []*service.RelayBalanceStation{}
 	for rows.Next() {
 		station, err := scanRelayBalanceStationRows(rows)
@@ -121,7 +121,7 @@ func (r *relayBalanceRepository) ListRuns(ctx context.Context, params service.Re
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	items := []*service.RelayBalanceRun{}
 	for rows.Next() {
 		run, err := scanRelayBalanceRunRows(rows)

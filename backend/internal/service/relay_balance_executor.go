@@ -43,7 +43,7 @@ func (e *NodeRelayBalanceExecutor) Execute(ctx context.Context, station *RelayBa
 		run.Error = err.Error()
 		return run
 	}
-	defer os.RemoveAll(workDir)
+	defer func() { _ = os.RemoveAll(workDir) }()
 
 	if err := os.WriteFile(filepath.Join(workDir, "package.json"), []byte(normalizePackageJSON(station.PackageJSON)), 0600); err != nil {
 		run.Error = err.Error()
