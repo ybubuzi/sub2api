@@ -168,7 +168,7 @@ LIMIT $%d OFFSET $%d`, grain, where, grain, sortOrder, sortOrder, len(args)-1, l
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	items := []*service.RelayBalanceRun{}
 	for rows.Next() {
 		run, err := scanRelayBalanceRunRows(rows)
@@ -343,7 +343,7 @@ func (r *relayBalanceRepository) GetTrend(ctx context.Context, params service.Re
 	if err != nil {
 		return nil, fmt.Errorf("query trend: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	pointMap := make(map[string]service.RelayBalanceTrendPoint)
 
