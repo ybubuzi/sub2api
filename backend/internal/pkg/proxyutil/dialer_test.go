@@ -14,7 +14,7 @@ func TestConfigureTransportProxy_Nil(t *testing.T) {
 	err := ConfigureTransportProxy(transport, nil)
 
 	require.NoError(t, err)
-	assert.Nil(t, transport.Proxy, "nil proxy should not set Proxy")
+	assert.NotNil(t, transport.Proxy, "nil proxy should fallback to ProxyFromEnvironment")
 	assert.Nil(t, transport.DialContext, "nil proxy should not set DialContext")
 }
 

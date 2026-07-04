@@ -1529,7 +1529,8 @@ export default {
       last90Days: '最近 90 天',
       customRange: '自定义范围',
       time: '时间',
-      noTrendData: '暂无趋势数据'
+      noTrendData: '暂无趋势数据',
+      clickToViewError: '点击查看错误详情'
     },
     // Dashboard
     dashboard: {

@@ -1525,7 +1525,8 @@ export default {
       last90Days: 'Last 90 Days',
       customRange: 'Custom Range',
       time: 'Time',
-      noTrendData: 'No trend data available'
+      noTrendData: 'No trend data available',
+      clickToViewError: 'Click to view error details'
     },
     // Dashboard
     dashboard: {

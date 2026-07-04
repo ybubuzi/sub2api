@@ -35,6 +35,8 @@ import (
 //   - error: 代理配置错误（协议不支持或 dialer 创建失败）
 func ConfigureTransportProxy(transport *http.Transport, proxyURL *url.URL) error {
 	if proxyURL == nil {
+		// 账户未配置代理时，fallback 到 HTTP_PROXY/HTTPS_PROXY 环境变量
+		transport.Proxy = http.ProxyFromEnvironment
 		return nil
 	}
 

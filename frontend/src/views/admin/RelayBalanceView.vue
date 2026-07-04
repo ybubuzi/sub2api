@@ -185,9 +185,12 @@
             <span v-else class="text-sm text-gray-400">-</span>
           </template>
           <template #cell-status="{ row }">
-            <span :class="['badge', row.status === 'success' ? 'badge-success' : 'badge-danger']">{{ row.status }}</span>
-            <div v-if="row.error" class="mt-1 max-w-md truncate text-xs text-red-500">{{ row.error }}</div>
-            <div v-if="row.stderr" class="mt-1 max-w-lg whitespace-pre-wrap break-all rounded bg-red-50 p-1.5 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">{{ row.stderr }}</div>
+            <div class="cursor-pointer" @click="toggleError(row.id)">
+              <span :class="['badge', row.status === 'success' ? 'badge-success' : 'badge-danger']">{{ row.status }}</span>
+              <div v-if="row.error && expandedErrorId === row.id" class="mt-1 max-w-md truncate text-xs text-red-500">{{ row.error }}</div>
+              <div v-if="row.stderr && expandedErrorId === row.id" class="mt-1 max-w-lg whitespace-pre-wrap break-all rounded bg-red-50 p-1.5 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">{{ row.stderr }}</div>
+              <span v-else-if="(row.error || row.stderr) && expandedErrorId !== row.id" class="text-xs text-gray-400">({{ t('admin.relayBalance.clickToViewError') }})</span>
+            </div>
           </template>
           <template #cell-started_at="{ value }">
             <span class="text-sm text-gray-500">{{ formatDateTime(value) }}</span>
@@ -285,6 +288,11 @@ const runFilters = reactive({
   sort_order: 'desc' as 'asc' | 'desc',
   granularity: '' as '' | 'hour' | 'day'
 })
+const expandedErrorId = ref<number | null>(null)
+
+function toggleError(id: number) {
+  expandedErrorId.value = expandedErrorId.value === id ? null : id
+}
 
 // Total Balance
 const totalBalance = ref<{ total_balance: number; currency: string; station_count: number }>({
