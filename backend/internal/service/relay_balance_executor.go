@@ -153,7 +153,8 @@ async function proxyFetch(url, opts = {}) {
           response.on('data', c => chunks.push(c));
           response.on('end', () => {
             const text = Buffer.concat(chunks).toString();
-            resolve({ ok: response.statusCode >= 200 && response.statusCode < 300, status: response.statusCode, statusText: response.statusMessage, headers: { get: (k) => response.headers[k.toLowerCase()] || null }, text: () => Promise.resolve(text), json: () => Promise.resolve(JSON.parse(text)) });
+            const h = (k) => { const v = response.headers[k.toLowerCase()]; if (v == null) return null; return Array.isArray(v) ? v.join(', ') : String(v); };
+            resolve({ ok: response.statusCode >= 200 && response.statusCode < 300, status: response.statusCode, statusText: response.statusMessage, headers: { get: h }, text: () => Promise.resolve(text), json: () => Promise.resolve(JSON.parse(text)) });
           });
         });
         httpsReq.on('error', reject);
@@ -170,11 +171,12 @@ async function proxyFetch(url, opts = {}) {
     const req = mod.request(
       isHttps ? { hostname, path: pathname + search, method, headers, rejectUnauthorized: true } : { hostname, path: pathname + search, method, headers },
       (res) => {
+        const h = (k) => { const v = res.headers[k.toLowerCase()]; if (v == null) return null; return Array.isArray(v) ? v.join(', ') : String(v); };
         const chunks = [];
         res.on('data', c => chunks.push(c));
         res.on('end', () => {
           const text = Buffer.concat(chunks).toString();
-          resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, statusText: res.statusMessage, headers: { get: (k) => res.headers[k.toLowerCase()] || null }, text: () => Promise.resolve(text), json: () => Promise.resolve(JSON.parse(text)) });
+          resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, statusText: res.statusMessage, headers: { get: h }, text: () => Promise.resolve(text), json: () => Promise.resolve(JSON.parse(text)) });
         });
       }
     );
