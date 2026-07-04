@@ -114,7 +114,78 @@ func hasDependencies(pkg string) bool {
 func buildRelayBalanceWrapper(station *RelayBalanceStation) string {
 	ctxJSON, _ := json.Marshal(map[string]string{"stationName": station.Name, "baseUrl": station.BaseURL})
 	return fmt.Sprintf(`
+import https from 'https';
+import http from 'http';
+import tls from 'tls';
+
+function parseProxy(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return { host: u.hostname, port: parseInt(u.port, 10) || 7890 };
+  } catch { return null; }
+}
+
+const proxyTarget = parseProxy(process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || '');
+
+async function proxyFetch(url, opts = {}) {
+  const parsed = new URL(url);
+  const { hostname, pathname, search } = parsed;
+  const method = (opts.method || 'GET').toUpperCase();
+  const headers = opts.headers || {};
+  const body = opts.body || null;
+  const isHttps = parsed.protocol === 'https:';
+
+  if (proxyTarget && isHttps) {
+    return new Promise((resolve, reject) => {
+      const tunnelReq = http.request({
+        host: proxyTarget.host, port: proxyTarget.port,
+        method: 'CONNECT', path: hostname + ':443',
+        headers: { Host: hostname },
+      });
+      tunnelReq.on('connect', (res, socket) => {
+        const tlsSocket = tls.connect({ socket, host: hostname, servername: hostname, rejectUnauthorized: true });
+        const httpsReq = https.request({
+          createConnection: () => tlsSocket, host: hostname,
+          path: pathname + search, method, headers,
+        }, (response) => {
+          const chunks = [];
+          response.on('data', c => chunks.push(c));
+          response.on('end', () => {
+            const text = Buffer.concat(chunks).toString();
+            resolve({ ok: response.statusCode >= 200 && response.statusCode < 300, status: response.statusCode, statusText: response.statusMessage, headers: { get: (k) => response.headers[k.toLowerCase()] || null }, text: () => Promise.resolve(text), json: () => Promise.resolve(JSON.parse(text)) });
+          });
+        });
+        httpsReq.on('error', reject);
+        if (body) httpsReq.write(body);
+        httpsReq.end();
+      });
+      tunnelReq.on('error', reject);
+      tunnelReq.end();
+    });
+  }
+
+  const mod = isHttps ? https : http;
+  return new Promise((resolve, reject) => {
+    const req = mod.request(
+      isHttps ? { hostname, path: pathname + search, method, headers, rejectUnauthorized: true } : { hostname, path: pathname + search, method, headers },
+      (res) => {
+        const chunks = [];
+        res.on('data', c => chunks.push(c));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString();
+          resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, statusText: res.statusMessage, headers: { get: (k) => res.headers[k.toLowerCase()] || null }, text: () => Promise.resolve(text), json: () => Promise.resolve(JSON.parse(text)) });
+        });
+      }
+    );
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
 const ctx = %s;
+globalThis.fetch = proxyFetch;
 const mod = await import('./station-script.mjs');
 const fn = mod.default || mod.run;
 if (typeof fn !== 'function') throw new Error('script must export default async function run(ctx) or export function run(ctx)');
