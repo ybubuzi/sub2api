@@ -68,7 +68,7 @@ func (e *NodeRelayBalanceExecutor) Execute(ctx context.Context, station *RelayBa
 		return run
 	}
 
-	stdout, stderr, err := runLimitedCommand(ctx, workDir, relayBalanceExecTimeout, "node", "--dns-result-order=ipv4first", "runner.mjs")
+	stdout, stderr, err := runLimitedCommand(ctx, workDir, relayBalanceExecTimeout, "node", "runner.mjs")
 	run.Stdout = stdout
 	run.Stderr = stderr
 	if err != nil {
@@ -114,6 +114,40 @@ func hasDependencies(pkg string) bool {
 func buildRelayBalanceWrapper(station *RelayBalanceStation) string {
 	ctxJSON, _ := json.Marshal(map[string]string{"stationName": station.Name, "baseUrl": station.BaseURL})
 	return fmt.Sprintf(`
+import https from 'https';
+
+// Override fetch with https module to work around undici Cloudflare issues
+globalThis.fetch = async (url, opts = {}) => {
+  const parsed = new URL(url);
+  const { hostname, pathname, search } = parsed;
+  const method = (opts.method || 'GET').toUpperCase();
+  const headers = opts.headers || {};
+  const body = opts.body || null;
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      { hostname, path: pathname + search, method, headers, rejectUnauthorized: true },
+      (res) => {
+        const chunks = [];
+        res.on('data', c => chunks.push(c));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString();
+          resolve({
+            ok: res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode,
+            statusText: res.statusMessage,
+            headers: { get: (k) => res.headers[k.toLowerCase()] || null },
+            text: () => Promise.resolve(text),
+            json: () => Promise.resolve(JSON.parse(text)),
+          });
+        });
+      }
+    );
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+};
+
 const ctx = %s;
 const mod = await import('./station-script.mjs');
 const fn = mod.default || mod.run;
