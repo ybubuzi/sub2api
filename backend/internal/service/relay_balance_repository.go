@@ -16,4 +16,5 @@ type RelayBalanceRepository interface {
 	ListRuns(ctx context.Context, params RelayBalanceRunListParams) ([]*RelayBalanceRun, int64, error)
 	InsertRun(ctx context.Context, run *RelayBalanceRun) error
 	GetTrend(ctx context.Context, params RelayBalanceTrendParams) ([]RelayBalanceTrendPoint, error)
+	GetTotalBalance(ctx context.Context) (*RelayBalanceTotalResponse, error)
 }

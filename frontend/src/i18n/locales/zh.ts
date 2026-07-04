@@ -1501,7 +1501,7 @@ export default {
       baseUrl: '主站地址',
       cron: 'Cron 表达式',
       script: '查询脚本',
-      scriptHint: '脚本需要 export default async function run(ctx)，返回 { balance, currency, raw }。ctx 包含 stationName 和 baseUrl。',
+      scriptHint: '脚本需要 export default async function run(ctx)，返回 balance、currency、raw 字段。ctx 包含 stationName 和 baseUrl。',
       balance: '余额',
       lastStatus: '最近状态',
       lastRun: '最近执行',

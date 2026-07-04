@@ -1497,7 +1497,7 @@ export default {
       baseUrl: 'Base URL',
       cron: 'Cron Expression',
       script: 'Query Script',
-      scriptHint: 'The script must export default async function run(ctx), returning { balance, currency, raw }. ctx contains stationName and baseUrl.',
+      scriptHint: 'The script must export default async function run(ctx), returning balance, currency, raw. ctx contains stationName and baseUrl.',
       balance: 'Balance',
       lastStatus: 'Last Status',
       lastRun: 'Last Run',

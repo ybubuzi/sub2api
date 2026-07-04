@@ -187,6 +187,7 @@
           <template #cell-status="{ row }">
             <span :class="['badge', row.status === 'success' ? 'badge-success' : 'badge-danger']">{{ row.status }}</span>
             <div v-if="row.error" class="mt-1 max-w-md truncate text-xs text-red-500">{{ row.error }}</div>
+            <div v-if="row.stderr" class="mt-1 max-w-lg whitespace-pre-wrap break-all rounded bg-red-50 p-1.5 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">{{ row.stderr }}</div>
           </template>
           <template #cell-started_at="{ value }">
             <span class="text-sm text-gray-500">{{ formatDateTime(value) }}</span>
@@ -629,7 +630,15 @@ async function saveStation() {
     showDialog.value = false
     await loadStations()
   } catch (err: any) {
-    appStore.showError(err?.message || t('common.unknownError'))
+    let detail = err?.message || t('common.unknownError')
+    if (err?.reason) {
+      detail += ` (${err.reason})`
+    }
+    if (err?.metadata) {
+      detail += ` ${JSON.stringify(err.metadata)}`
+    }
+    console.error('saveStation failed:', err)
+    appStore.showError(detail)
   } finally {
     saving.value = false
   }

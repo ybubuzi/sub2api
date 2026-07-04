@@ -314,25 +314,5 @@ func (s *RelayBalanceService) GetTrend(ctx context.Context, params RelayBalanceT
 }
 
 func (s *RelayBalanceService) GetTotalBalance(ctx context.Context) (*RelayBalanceTotalResponse, error) {
-	stations, _, err := s.repo.ListStations(ctx, RelayBalanceListParams{})
-	if err != nil {
-		return nil, fmt.Errorf("list stations: %w", err)
-	}
-
-	var totalBalance float64
-	stationCount := 0
-	currency := "USD"
-
-	for _, station := range stations {
-		if station.LastBalance != nil && station.LastStatus == "success" {
-			totalBalance += *station.LastBalance
-			stationCount++
-		}
-	}
-
-	return &RelayBalanceTotalResponse{
-		TotalBalance: totalBalance,
-		Currency:     currency,
-		StationCount: stationCount,
-	}, nil
+	return s.repo.GetTotalBalance(ctx)
 }
