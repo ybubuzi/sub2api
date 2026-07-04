@@ -68,7 +68,7 @@ func (e *NodeRelayBalanceExecutor) Execute(ctx context.Context, station *RelayBa
 		return run
 	}
 
-	stdout, stderr, err := runLimitedCommand(ctx, workDir, relayBalanceExecTimeout, "node", "runner.mjs")
+	stdout, stderr, err := runLimitedCommand(ctx, workDir, relayBalanceExecTimeout, "node", "--dns-result-order=ipv4first", "runner.mjs")
 	run.Stdout = stdout
 	run.Stderr = stderr
 	if err != nil {
