@@ -114,40 +114,6 @@ func hasDependencies(pkg string) bool {
 func buildRelayBalanceWrapper(station *RelayBalanceStation) string {
 	ctxJSON, _ := json.Marshal(map[string]string{"stationName": station.Name, "baseUrl": station.BaseURL})
 	return fmt.Sprintf(`
-import https from 'https';
-
-// Override fetch with https module to work around undici Cloudflare issues
-globalThis.fetch = async (url, opts = {}) => {
-  const parsed = new URL(url);
-  const { hostname, pathname, search } = parsed;
-  const method = (opts.method || 'GET').toUpperCase();
-  const headers = opts.headers || {};
-  const body = opts.body || null;
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      { hostname, path: pathname + search, method, headers, rejectUnauthorized: true },
-      (res) => {
-        const chunks = [];
-        res.on('data', c => chunks.push(c));
-        res.on('end', () => {
-          const text = Buffer.concat(chunks).toString();
-          resolve({
-            ok: res.statusCode >= 200 && res.statusCode < 300,
-            status: res.statusCode,
-            statusText: res.statusMessage,
-            headers: { get: (k) => res.headers[k.toLowerCase()] || null },
-            text: () => Promise.resolve(text),
-            json: () => Promise.resolve(JSON.parse(text)),
-          });
-        });
-      }
-    );
-    req.on('error', reject);
-    if (body) req.write(body);
-    req.end();
-  });
-};
-
 const ctx = %s;
 const mod = await import('./station-script.mjs');
 const fn = mod.default || mod.run;
@@ -184,7 +150,13 @@ func runLimitedCommand(parent context.Context, dir string, timeout time.Duration
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
-	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir, "npm_config_cache=" + filepath.Join(dir, ".npm")}
+	env := []string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir, "npm_config_cache=" + filepath.Join(dir, ".npm")}
+	for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"} {
+		if v := os.Getenv(key); v != "" {
+			env = append(env, key+"="+v)
+		}
+	}
+	cmd.Env = env
 	var stdout, stderr limitedBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
