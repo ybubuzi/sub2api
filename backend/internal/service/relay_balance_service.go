@@ -188,8 +188,10 @@ func (s *RelayBalanceService) Unschedule(id int64) {
 
 func (s *RelayBalanceService) executeStation(ctx context.Context, station *RelayBalanceStation) RelayBalanceRun {
 	run := s.executor.Execute(ctx, station)
-	if err := s.repo.InsertRun(ctx, &run); err != nil {
-		log.Printf("[RelayBalance] insert run station=%d failed: %v", station.ID, err)
+	if run.Status == "success" {
+		if err := s.repo.InsertRun(ctx, &run); err != nil {
+			log.Printf("[RelayBalance] insert run station=%d failed: %v", station.ID, err)
+		}
 	}
 	next := nextRelayBalanceRun(station.CronExpression, time.Now())
 	if err := s.repo.UpdateStationAfterRun(ctx, station.ID, run, next); err != nil {
@@ -295,13 +297,13 @@ func (s *RelayBalanceService) GetTrend(ctx context.Context, params RelayBalanceT
 		series := RelayBalanceTrendSeries{
 			StationID:   stationID,
 			StationName: stationName,
-			Balances:    make([]float64, len(buckets)),
+			Balances:    make([]*float64, len(buckets)),
 		}
 
 		for i, bucket := range buckets {
 			if stationBalances, ok := bucketStationBalance[bucket]; ok {
 				if balance, ok := stationBalances[stationID]; ok {
-					series.Balances[i] = balance
+					series.Balances[i] = &balance
 					response.Total[i] += balance
 				}
 			}
