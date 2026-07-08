@@ -183,7 +183,7 @@ LIMIT $%d OFFSET $%d`, grain, where, grain, sortOrder, sortOrder, len(args)-1, l
 func (r *relayBalanceRepository) UpdateStationAfterRun(ctx context.Context, stationID int64, result service.RelayBalanceRun, nextRunAt *time.Time) error {
 	_, err := r.db.ExecContext(ctx, `
 UPDATE relay_balance_stations
-SET last_balance = $2, last_currency = $3, last_status = $4, last_error = $5, last_run_at = $6, next_run_at = $7, updated_at = NOW()
+SET last_balance = COALESCE($2, last_balance), last_currency = COALESCE($3, last_currency), last_status = $4, last_error = $5, last_run_at = $6, next_run_at = $7, updated_at = NOW()
 WHERE id = $1`, stationID, relayBalanceNullableFloat(result.Balance), relayBalanceNullString(result.Currency), result.Status, relayBalanceNullString(result.Error), result.FinishedAt, nextRunAt)
 	return err
 }
