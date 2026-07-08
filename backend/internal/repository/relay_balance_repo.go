@@ -331,9 +331,9 @@ func (r *relayBalanceRepository) GetTotalBalance(ctx context.Context) (*service.
 	var totalBalance float64
 	var stationCount int
 	err := r.db.QueryRowContext(ctx, `
-		SELECT COALESCE(SUM(last_balance), 0), COUNT(*) FILTER (WHERE last_status = 'success')
+		SELECT COALESCE(SUM(last_balance), 0), COUNT(*)
 		FROM relay_balance_stations
-		WHERE last_balance IS NOT NULL AND last_status = 'success'
+		WHERE last_balance IS NOT NULL
 	`).Scan(&totalBalance, &stationCount)
 	if err != nil {
 		return nil, fmt.Errorf("get total balance: %w", err)
