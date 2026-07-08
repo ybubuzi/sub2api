@@ -312,6 +312,7 @@ func (s *RelayBalanceService) GetTrend(ctx context.Context, params RelayBalanceT
 			}
 			// LOCF: carry forward last known balance when no data in this bucket
 			series.Balances[i] = lastBalance
+			response.Total[i] += lastBalance
 		}
 
 		response.Series = append(response.Series, series)
