@@ -85,9 +85,9 @@ type RelayBalanceTrendResponse struct {
 }
 
 type RelayBalanceTrendSeries struct {
-	StationID   int64      `json:"station_id"`
-	StationName string     `json:"station_name"`
-	Balances    []*float64 `json:"balances"`
+	StationID   int64     `json:"station_id"`
+	StationName string    `json:"station_name"`
+	Balances    []float64 `json:"balances"`
 }
 
 type RelayBalanceTotalResponse struct {

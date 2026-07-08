@@ -297,16 +297,21 @@ func (s *RelayBalanceService) GetTrend(ctx context.Context, params RelayBalanceT
 		series := RelayBalanceTrendSeries{
 			StationID:   stationID,
 			StationName: stationName,
-			Balances:    make([]*float64, len(buckets)),
+			Balances:    make([]float64, len(buckets)),
 		}
 
+		var lastBalance float64
 		for i, bucket := range buckets {
 			if stationBalances, ok := bucketStationBalance[bucket]; ok {
 				if balance, ok := stationBalances[stationID]; ok {
-					series.Balances[i] = &balance
+					lastBalance = balance
+					series.Balances[i] = balance
 					response.Total[i] += balance
+					continue
 				}
 			}
+			// LOCF: carry forward last known balance when no data in this bucket
+			series.Balances[i] = lastBalance
 		}
 
 		response.Series = append(response.Series, series)
