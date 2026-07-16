@@ -376,6 +376,7 @@ export interface SystemSettings {
   affiliate_rebate_freeze_hours: number;
   affiliate_rebate_duration_days: number;
   affiliate_rebate_per_invitee_cap: number;
+  affiliate_admin_recharge_enabled: boolean;
   default_concurrency: number;
   default_user_rpm_limit: number;
   default_subscriptions: DefaultSubscriptionSetting[];
@@ -589,6 +590,7 @@ export interface SystemSettings {
   payment_enabled_types: string[];
   payment_balance_disabled: boolean;
   payment_balance_recharge_multiplier: number;
+  payment_subscription_usd_to_cny_rate: number;
   payment_recharge_fee_rate: number;
   payment_load_balance_strategy: string;
   payment_product_name_prefix: string;
@@ -605,7 +607,33 @@ export interface SystemSettings {
   payment_visible_method_wxpay_source?: string;
   payment_visible_method_alipay_enabled?: boolean;
   payment_visible_method_wxpay_enabled?: boolean;
+  openai_low_upstream_rate_priority_enabled?: boolean;
+  openai_oauth_scheduling_rate_multiplier?: number;
   openai_advanced_scheduler_enabled?: boolean;
+  openai_advanced_scheduler_sticky_weighted_enabled?: boolean;
+  openai_advanced_scheduler_subscription_priority_enabled?: boolean;
+  openai_advanced_scheduler_lb_top_k?: string;
+  openai_advanced_scheduler_weight_priority?: string;
+  openai_advanced_scheduler_weight_load?: string;
+  openai_advanced_scheduler_weight_queue?: string;
+  openai_advanced_scheduler_weight_error_rate?: string;
+  openai_advanced_scheduler_weight_ttft?: string;
+  openai_advanced_scheduler_weight_reset?: string;
+  openai_advanced_scheduler_weight_quota_headroom?: string;
+  openai_advanced_scheduler_weight_upstream_cost?: string;
+  openai_advanced_scheduler_weight_previous_response?: string;
+  openai_advanced_scheduler_weight_session_sticky?: string;
+  openai_advanced_scheduler_effective_lb_top_k?: string;
+  openai_advanced_scheduler_effective_weight_priority?: string;
+  openai_advanced_scheduler_effective_weight_load?: string;
+  openai_advanced_scheduler_effective_weight_queue?: string;
+  openai_advanced_scheduler_effective_weight_error_rate?: string;
+  openai_advanced_scheduler_effective_weight_ttft?: string;
+  openai_advanced_scheduler_effective_weight_reset?: string;
+  openai_advanced_scheduler_effective_weight_quota_headroom?: string;
+  openai_advanced_scheduler_effective_weight_upstream_cost?: string;
+  openai_advanced_scheduler_effective_weight_previous_response?: string;
+  openai_advanced_scheduler_effective_weight_session_sticky?: string;
 
   // 余额、订阅到期与账号限额通知
   balance_low_notify_enabled: boolean;
@@ -650,6 +678,7 @@ export interface UpdateSettingsRequest {
   affiliate_rebate_freeze_hours?: number;
   affiliate_rebate_duration_days?: number;
   affiliate_rebate_per_invitee_cap?: number;
+  affiliate_admin_recharge_enabled?: boolean;
   default_concurrency?: number;
   default_user_rpm_limit?: number;
   default_subscriptions?: DefaultSubscriptionSetting[];
@@ -838,6 +867,7 @@ export interface UpdateSettingsRequest {
   payment_enabled_types?: string[];
   payment_balance_disabled?: boolean;
   payment_balance_recharge_multiplier?: number;
+  payment_subscription_usd_to_cny_rate?: number;
   payment_recharge_fee_rate?: number;
   payment_load_balance_strategy?: string;
   payment_product_name_prefix?: string;
@@ -854,7 +884,22 @@ export interface UpdateSettingsRequest {
   payment_visible_method_wxpay_source?: string;
   payment_visible_method_alipay_enabled?: boolean;
   payment_visible_method_wxpay_enabled?: boolean;
+  openai_low_upstream_rate_priority_enabled?: boolean;
+  openai_oauth_scheduling_rate_multiplier?: number;
   openai_advanced_scheduler_enabled?: boolean;
+  openai_advanced_scheduler_sticky_weighted_enabled?: boolean;
+  openai_advanced_scheduler_subscription_priority_enabled?: boolean;
+  openai_advanced_scheduler_lb_top_k?: string;
+  openai_advanced_scheduler_weight_priority?: string;
+  openai_advanced_scheduler_weight_load?: string;
+  openai_advanced_scheduler_weight_queue?: string;
+  openai_advanced_scheduler_weight_error_rate?: string;
+  openai_advanced_scheduler_weight_ttft?: string;
+  openai_advanced_scheduler_weight_reset?: string;
+  openai_advanced_scheduler_weight_quota_headroom?: string;
+  openai_advanced_scheduler_weight_upstream_cost?: string;
+  openai_advanced_scheduler_weight_previous_response?: string;
+  openai_advanced_scheduler_weight_session_sticky?: string;
   // 余额、订阅到期与账号限额通知
   balance_low_notify_enabled?: boolean;
   balance_low_notify_threshold?: number;
@@ -1237,11 +1282,12 @@ export async function updateRectifierSettings(
  */
 export interface OpenAIFastPolicyRule {
   service_tier: "all" | "priority" | "flex";
-  action: "pass" | "filter" | "block";
+  action: "pass" | "filter" | "block" | "force_priority";
   scope: "all" | "oauth" | "apikey" | "bedrock";
+  user_ids?: number[];
   error_message?: string;
   model_whitelist?: string[];
-  fallback_action?: "pass" | "filter" | "block";
+  fallback_action?: "pass" | "filter" | "block" | "force_priority";
   fallback_error_message?: string;
 }
 

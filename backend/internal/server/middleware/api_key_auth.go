@@ -25,7 +25,8 @@ func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionS
 //   - 鉴权（Authentication）：验证 Key 有效性、用户状态、IP 限制 —— 始终执行
 //   - 计费执行（Billing Enforcement）：过期/配额/订阅/余额检查 —— skipBilling 时整块跳过
 //
-// /v1/usage 端点只需鉴权，不需要计费执行（允许过期/配额耗尽的 Key 查询自身用量）。
+// /v1/usage 和 /v1/sub2api/billing 端点只需鉴权，不需要计费执行。
+// 前者允许过期/配额耗尽的 Key 查询自身用量，后者用于读取当前 Key 的倍率配置。
 func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// ── 1. 提取 API Key ──────────────────────────────────────────
@@ -126,6 +127,10 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		if abortIfAPIKeyGroupNotAllowed(c, apiKey) {
 			return
 		}
+		ctx := context.WithValue(c.Request.Context(), ctxkey.UserID, apiKey.User.ID)
+		c.Request = c.Request.WithContext(ctx)
+		billingInfoRequest := c.Request.URL.Path == "/v1/sub2api/billing"
+		skipBilling := c.Request.URL.Path == "/v1/usage" || billingInfoRequest
 
 		// ── 4. SimpleMode → early return ─────────────────────────────
 
@@ -137,20 +142,20 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			})
 			c.Set(string(ContextKeyUserRole), apiKey.User.Role)
 			setGroupContext(c, apiKey.Group)
-			_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
+			if !billingInfoRequest {
+				_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
+			}
 			c.Next()
 			return
 		}
 
-		// ── 5. 加载订阅（订阅模式时始终加载） ───────────────────────
-
-		// skipBilling: /v1/usage 只需鉴权，跳过所有计费执行
-		skipBilling := c.Request.URL.Path == "/v1/usage"
+		// ── 5. 按端点需要加载订阅 ───────────────────────────────────
 
 		var subscription *service.UserSubscription
 		isSubscriptionType := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
 
-		if isSubscriptionType && subscriptionService != nil {
+		// 倍率自省不需要订阅数据；/v1/usage 仍保留原有订阅读取行为。
+		if isSubscriptionType && subscriptionService != nil && !billingInfoRequest {
 			sub, subErr := subscriptionService.GetActiveSubscription(
 				c.Request.Context(),
 				apiKey.User.ID,
@@ -193,6 +198,15 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			// 订阅模式：验证订阅限额
 			if subscription != nil {
 				needsMaintenance, validateErr := subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
+				if needsMaintenance {
+					refreshed, maintenanceErr := subscriptionService.EnsureWindowMaintenance(c.Request.Context(), subscription)
+					if maintenanceErr != nil {
+						AbortWithError(c, 500, "SUBSCRIPTION_MAINTENANCE_FAILED", "Failed to maintain subscription usage windows")
+						return
+					}
+					subscription = refreshed
+					_, validateErr = subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
+				}
 				if validateErr != nil {
 					code := "SUBSCRIPTION_INVALID"
 					status := 403
@@ -205,15 +219,9 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 					AbortWithError(c, status, code, validateErr.Error())
 					return
 				}
-
-				// 窗口维护异步化（不阻塞请求）
-				if needsMaintenance {
-					maintenanceCopy := *subscription
-					subscriptionService.DoWindowMaintenance(&maintenanceCopy)
-				}
 			} else {
 				// 非订阅模式 或 订阅模式但 subscriptionService 未注入：回退到余额检查
-				if apiKey.User.Balance <= 0 {
+				if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
 					AbortWithError(c, 403, "INSUFFICIENT_BALANCE", "Insufficient account balance")
 					return
 				}
@@ -232,7 +240,9 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		})
 		c.Set(string(ContextKeyUserRole), apiKey.User.Role)
 		setGroupContext(c, apiKey.Group)
-		_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
+		if !billingInfoRequest {
+			_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
+		}
 
 		c.Next()
 	}
@@ -287,6 +297,13 @@ func setGroupContext(c *gin.Context, group *service.Group) {
 	}
 	ctx := context.WithValue(c.Request.Context(), ctxkey.Group, group)
 	c.Request = c.Request.WithContext(ctx)
+}
+
+// apiKeyBalanceBelowAuthThreshold 保持鉴权层的历史语义：仅在余额耗尽（<=0）时拒绝。
+// MinimumBalanceReserve 只作为 billing-cache 预检的保守下限，不得复用为鉴权硬门槛，
+// 否则已配置该值的存量部署升级后，0 < balance < reserve 的用户会在所有端点被静默 403。
+func apiKeyBalanceBelowAuthThreshold(balance float64, _ *config.Config) bool {
+	return balance <= 0
 }
 
 func abortIfAPIKeyGroupUnavailable(c *gin.Context, apiKey *service.APIKey) bool {
