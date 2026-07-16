@@ -245,8 +245,6 @@ func relayBalanceSortOrder(sortOrder string) string {
 	return "DESC"
 }
 
-type rowScanner interface{ Scan(dest ...any) error }
-
 func scanRelayBalanceStation(row rowScanner) (*service.RelayBalanceStation, error) {
 	station := &service.RelayBalanceStation{}
 	var lastBalance sql.NullFloat64
